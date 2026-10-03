@@ -1,0 +1,2280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly Roster — By Name</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 13px; background: #f8f9fa; color: #333; }
+
+header { background: #1a1a2e; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+header h1 { color: #fff; font-size: 16px; margin: 0; letter-spacing: 0.3px; }
+.header-btns { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: opacity .15s; }
+.btn:hover { opacity: 0.85; }
+.btn-red    { background: #dc3545; color: #fff; }
+.btn-blue   { background: #0d6efd; color: #fff; }
+.btn-green  { background: #198754; color: #fff; }
+.btn-dark   { background: #e9ecef; color: #495057; border: 1px solid #ced4da; }
+.btn-orange { background: #fd7e14; color: #fff; }
+.btn-purple { background: #6f42c1; color: #fff; }
+
+.save-indicator { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+.save-indicator.saving { background: #fff3cd; color: #856404; }
+.save-indicator.saved  { background: #d1e7dd; color: #0f5132; }
+.save-indicator.error  { background: #f8d7da; color: #842029; }
+.save-indicator.offline { background: #e2e3e5; color: #41464b; }
+#conflictBanner { display:none; position:sticky; top:0; z-index:500; background:#842029; color:#fff; padding:12px 16px; font-size:14px; align-items:center; justify-content:space-between; gap:12px; }
+#conflictBanner.show { display:flex; }
+#conflictBanner button { font-size:13px; font-weight:bold; padding:6px 14px; border-radius:4px; border:none; cursor:pointer; }
+#conflictBanner .reloadBtn { background:#fff; color:#842029; }
+
+.exception-toggle { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; color: #fff; }
+.exception-toggle input { cursor: pointer; }
+
+#periodBar { display: flex; align-items: stretch; background: #16213e; border-bottom: 3px solid #0d6efd; overflow-x: auto; min-height: 38px; }
+.period-item { display: flex; align-items: center; gap: 5px; padding: 0 16px; cursor: pointer; white-space: nowrap; color: #8899bb; font-size: 12px; font-weight: bold; border-right: 1px solid rgba(255,255,255,0.08); border-bottom: 3px solid transparent; margin-bottom: -3px; transition: background .15s; }
+.period-item:hover { background: rgba(255,255,255,0.06); color: #ccd; }
+.period-item.active { background: #f8f9fa; color: #0d6efd; border-bottom-color: #f8f9fa; }
+.period-name { outline: none; }
+.period-name[contenteditable="true"] { background: #fff; border: 1px solid #0d6efd; color: #333; padding: 1px 4px; border-radius: 3px; }
+.del-period { color: #f66; font-size: 9px; opacity: 0.4; cursor: pointer; }
+.del-period:hover { opacity: 1; }
+#addPeriodBtn { background: #0d6efd; color: #fff; border: none; padding: 0 14px; cursor: pointer; font-size: 20px; font-weight: bold; display: flex; align-items: center; flex-shrink: 0; }
+#addPeriodBtn:hover { background: #0b5ed7; }
+
+#tabBar { display: flex; align-items: stretch; background: #e9ecef; border-bottom: 2px solid #ced4da; overflow-x: auto; min-height: 36px; }
+#addTabBtn { background: #20c997; color: #fff; border: none; padding: 0 14px; cursor: pointer; font-size: 18px; font-weight: bold; display: flex; align-items: center; flex-shrink: 0; }
+#addTabBtn:hover { background: #17a683; }
+.tab { display: flex; align-items: center; gap: 5px; padding: 0 15px; cursor: pointer; white-space: nowrap; color: #6c757d; font-weight: bold; font-size: 12px; border-right: 1px solid #dee2e6; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tab:hover { background: #dee2e6; }
+.tab.active { border-bottom-color: #0d6efd; color: #0d6efd; background: #fff; }
+.tab-name { outline: none; padding: 1px 3px; border-radius: 3px; }
+.tab-name[contenteditable="true"] { background: #fff; border: 1px solid #0d6efd; color: #333; }
+.del-tab { color: #dc3545; font-size: 9px; opacity: 0.4; cursor: pointer; }
+.del-tab:hover { opacity: 1; }
+
+#contentArea { height: calc(100vh - 124px); overflow: auto; padding: 15px; }
+
+/* ── ROSTER (names x days) ── */
+table.roster { border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+table.roster th, table.roster td { border: 1px solid #ced4da; }
+table.roster thead { position: sticky; top: 0; z-index: 4; }
+th.name-corner { background: #f1f3f5; width: 170px; min-width: 150px; padding: 8px; color: #495057; font-weight: bold; text-align: left; position: sticky; left: 0; top: 0; z-index: 5; }
+th.day-th { background: #16213e; color: #fff; text-align: center; padding: 8px 4px; font-size: 12px; min-width: 87px; }
+th.day-th .day-sub { display:block; font-size:9px; font-weight:normal; color:#8899bb; margin-top:2px; }
+th.day-th.day-sat { background: #0d6efd; }
+th.day-th.day-sun { background: #7a1224; }
+.day-label-input { outline: none; cursor: text; display: block; width: 100%; text-align: center; font-weight: bold; white-space: pre-wrap; word-break: break-word; border-radius: 3px; padding: 1px 2px; }
+.day-label-input:hover { background: rgba(255,255,255,0.12); }
+.day-label-input:focus { background: #fff; color: #212529; }
+td.emp-name-cell { background: #f8f9fa; font-weight: bold; font-size: 12px; padding: 8px 8px; white-space: nowrap; color: #212529; position: sticky; left: 0; z-index: 2; border-right: 2px solid #ced4da; }
+td.day-slot-cell { padding: 4px; vertical-align: top; min-width: 87px; }
+th.day-th.hours-th { background: #343a40; min-width: 60px; }
+td.hours-cell { background: #f8f9fa; font-weight: bold; font-size: 12px; text-align: center; white-space: nowrap; color: #212529; }
+.hrs-cum { display: block; font-weight: normal; font-size: 10px; color: #6c757d; }
+td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
+
+.cell-wrap { display: flex; flex-direction: column; gap: 3px; min-height: 30px; }
+.chip { display: flex; align-items: center; justify-content: space-between; gap: 4px; background: #cfe2ff; color: #084298; border: 1px solid #b6d4fe; border-radius: 4px; padding: 4px 6px; font-size: 11px; font-weight: bold; cursor: pointer; line-height: 1.25; }
+.chip:hover { background: #b6d4fe; }
+.chip .chip-label { overflow: hidden; text-overflow: ellipsis; }
+.chip .chip-x { flex-shrink:0; color: #6c757d; font-weight: bold; cursor: pointer; padding: 0 2px; border-radius: 3px; }
+.chip .chip-x:hover { background: #dc3545; color: #fff; }
+.chip.exception-chip { background: #ffe5d0; color: #7c3700; border-color: #fd7e14; }
+.status-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0,0,0,0.15); }
+.add-cell-btn { border: 1px dashed #ced4da; background: #fff; color: #adb5bd; font-size: 11px; padding: 5px 6px; border-radius: 4px; cursor: pointer; text-align: center; }
+.add-cell-btn:hover { border-color: #0d6efd; color: #0d6efd; background: #f0f6ff; }
+.add-cell-btn.small { font-size: 14px; font-weight: bold; padding: 1px 6px; align-self: flex-start; }
+
+.shift-block { margin-bottom: 40px; }
+.block-title { color: #0d6efd; font-size: 17px; font-weight: bold; margin: 0 0 10px 4px; }
+
+/* ── SHIFTS overview (cards) ── */
+#shiftsView { display: none; flex-wrap: wrap; gap: 15px; align-content: flex-start; padding: 15px; }
+#shiftsView.active { display: flex; }
+#employeesView { display: none; flex-wrap: wrap; gap: 15px; align-content: flex-start; padding: 15px; }
+#employeesView.active { display: flex; }
+.emp-card { background: #fff; border: 1px solid #ced4da; border-radius: 6px; padding: 12px; min-width: 230px; max-width: 260px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+.emp-card-title { font-weight: bold; color: #212529; font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; }
+.emp-card-copy { background: #e9ecef; border: 1px solid #ced4da; color: #495057; font-size: 11px; padding: 3px 8px; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+.emp-card-copy:hover { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+.emp-card-copy.copied { background: #198754; color: #fff; border-color: #198754; }
+.emp-card-day { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 4px 6px; margin-bottom: 3px; border-radius: 4px; background: #f8f9fa; border-left: 3px solid #0d6efd; }
+.emp-card-day .day-name { font-weight: bold; color: #495057; flex-shrink: 0; }
+.emp-card-day .day-val { color: #212529; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.emp-card-day.off-day { border-left-color: #dee2e6; }
+.emp-card-day.off-day .day-val { color: #adb5bd; font-style: italic; }
+.emp-card-day.rest-violation { box-shadow: inset 0 -3px 0 0 #dc3545; }
+.emp-card-hours { margin-top: 8px; padding-top: 6px; border-top: 1px solid #dee2e6; font-size: 12px; color: #495057; text-align: right; }
+.shift-card { background: #fff; border: 1px solid #ced4da; border-radius: 6px; padding: 12px; min-width: 250px; max-width: 300px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.shift-card-title { font-weight: bold; color: #0d6efd; font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; border-bottom: 1px solid #dee2e6; padding-bottom: 4px; }
+.shift-card-count { color: #6c757d; font-size: 11px; font-weight: normal; background: #e9ecef; padding: 2px 6px; border-radius: 10px; }
+.shift-card-day { font-size: 11px; font-weight: bold; color: #6c757d; margin: 7px 0 3px; text-transform: uppercase; letter-spacing: .3px; }
+.shift-card-slot { font-size: 12px; color: #495057; padding: 3px 0 3px 10px; border-left: 3px solid #0d6efd; margin-bottom: 3px; background: #f8f9fa; border-radius: 0 4px 4px 0; }
+.shift-card-slot.empty { color: #adb5bd; font-style: italic; border-left-color: #dee2e6; }
+
+#periodsContainer { display: contents; }
+#tabsContainer    { display: contents; }
+
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: center; justify-content: center; }
+.modal-backdrop.open { display: flex; }
+.modal-box { background: #fff; border-radius: 8px; padding: 22px; box-shadow: 0 10px 40px rgba(0,0,0,0.18); display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow-y: auto; }
+.modal-box.w340 { width: 340px; }
+.modal-box.w420 { width: 420px; }
+.modal-box.w520 { width: 520px; }
+.modal-title { font-size: 17px; font-weight: bold; color: #0d6efd; border-bottom: 2px solid #dee2e6; padding-bottom: 10px; margin-bottom: 4px; }
+.modal-label { font-size: 12px; font-weight: bold; color: #495057; margin-bottom: 3px; display: block; }
+.modal-input { width: 100%; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 5px; font-size: 13px; outline: none; }
+.modal-input:focus { border-color: #86b7fe; box-shadow: 0 0 0 0.15rem rgba(13,110,253,.2); }
+.modal-select { width: 100%; padding: 7px 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 13px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.radio-group { display: flex; flex-direction: column; gap: 8px; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 10px 12px; }
+.radio-opt { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+#modalEmpList { max-height: 340px; overflow-y: auto; padding: 8px; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; }
+.memp { display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; margin-bottom: 7px; background: #fff; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px; gap: 8px; }
+.memp:last-child { margin-bottom: 0; }
+.memp-info { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.memp-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.memp button, .memp-actions button { background: #dc3545; color: #fff; border: none; width: 28px; height: 28px; border-radius: 50%; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+.memp button:hover, .memp-actions button:hover { background: #bb2d3b; }
+.memp-actions button.memp-edit { background: #0d6efd; }
+.memp-actions button.memp-edit:hover { background: #0b5ed7; }
+.emp-modal-subbtns { display: flex; gap: 6px; }
+.emp-modal-subbtns .btn { flex: 1; font-size: 11px; padding: 6px 4px; }
+
+/* Categories, groups, employee numbers */
+.cat-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; vertical-align: middle; flex-shrink: 0; }
+.emp-no { color: #6c757d; font-weight: normal; font-size: 11px; }
+.emp-group-tag { background: #e9ecef; color: #495057; font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: bold; }
+#categoryLegend { display: none; flex-wrap: wrap; gap: 12px; padding: 6px 12px; background: #fff; border-bottom: 1px solid #dee2e6; font-size: 11px; align-items: center; }
+.legend-chip { display: flex; align-items: center; }
+.mgr-group-row { display: flex; gap: 6px; align-items: center; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 8px; }
+.mgr-group-label { flex: 1; }
+.mgr-group-row button { border: none; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 13px; flex-shrink: 0; background: #6c757d; color: #fff; }
+.mgr-group-row button:hover { opacity: 0.85; }
+.mgr-group-row button.mgr-del-group { background: #dc3545; }
+.mgr-group-row button.mgr-del-group:hover { background: #bb2d3b; }
+.mgr-group-row button:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Shift Manager modal ── */
+#shiftMgrList { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; padding: 4px; }
+.mgr-shift { background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 10px; }
+.mgr-shift-head { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.mgr-shift-color { width: 30px; height: 30px; padding: 0; border: 1px solid #ced4da; border-radius: 5px; cursor: pointer; flex-shrink: 0; background: none; }
+.mgr-shift-head input { flex: 1; font-weight: bold; }
+.mgr-del-shift { background: #dc3545; color: #fff; border: none; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 13px; flex-shrink: 0; }
+.mgr-del-shift:hover { background: #bb2d3b; }
+.mgr-slot-row { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; padding-left: 12px; }
+.mgr-slot-row input { flex: 1; font-size: 12px; padding: 5px 8px; }
+.mgr-del-slot { background: #e9ecef; color: #6c757d; border: 1px solid #ced4da; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; font-size: 12px; flex-shrink: 0; }
+.mgr-del-slot:hover { background: #dc3545; color: #fff; }
+.mgr-add-slot { font-size: 11px; padding: 4px 8px; margin-left: 12px; }
+
+.mgr-status-row { display: flex; gap: 6px; align-items: center; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 8px; }
+.mgr-status-paid { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #495057; white-space: nowrap; flex-shrink: 0; }
+.mgr-status-paid input { margin: 0; }
+.mgr-shift-times { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #495057; padding: 4px 0; }
+.mgr-shift-times input[type="time"] { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; }
+.mgr-shift-hours { color: #6c757d; font-size: 10px; }
+.avail-row { display: flex; gap: 5px; align-items: center; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 6px; }
+.avail-row select { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; }
+.avail-row input[type="time"] { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; width: 78px; }
+.avail-row button { background: #dc3545; color: #fff; border: none; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; cursor: pointer; flex-shrink: 0; }
+.avail-badge { display: inline-block; margin-left: 3px; font-size: 10px; }
+.mgr-status-color { width: 30px; height: 30px; padding: 0; border: 1px solid #ced4da; border-radius: 5px; cursor: pointer; flex-shrink: 0; background: none; }
+.mgr-status-label { flex: 1; }
+.mgr-del-status { background: #dc3545; color: #fff; border: none; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; font-size: 13px; flex-shrink: 0; }
+.mgr-del-status:hover { background: #bb2d3b; }
+
+/* ── Shared floating shift/slot PICKER ── */
+#pickerPanel { position: fixed; z-index: 500; display: none; width: 300px; max-height: 380px; background: #fff; border: 1.5px solid #0d6efd; border-radius: 8px; box-shadow: 0 10px 35px rgba(0,0,0,0.22); flex-direction: column; overflow: hidden; }
+#pickerPanel.open { display: flex; }
+#pickerSearch { border: none; border-bottom: 2px solid #e9ecef; padding: 10px 12px; font-size: 13px; outline: none; }
+#pickerSearch:focus { border-bottom-color: #0d6efd; }
+#pickerList { overflow-y: auto; flex: 1; padding: 6px; }
+.picker-clear { padding: 7px 10px; font-size: 12px; color: #dc3545; cursor: pointer; border-radius: 5px; font-weight: bold; }
+.picker-clear:hover { background: #f8d7da; }
+.picker-group { margin-bottom: 6px; }
+.picker-group-title { font-size: 11px; font-weight: bold; color: #6c757d; text-transform: uppercase; letter-spacing: .3px; padding: 5px 8px 3px; display:flex; justify-content:space-between; }
+.picker-group.full .picker-group-title { color: #adb5bd; }
+.picker-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; font-size: 12.5px; border-radius: 5px; cursor: pointer; color: #212529; }
+.picker-row:hover { background: #e7f1ff; }
+.picker-row.taken { color: #7c3700; background: #fff6ec; }
+.picker-row.taken:hover { background: #ffe5d0; }
+.picker-row.taken .picker-occ { color: #fd7e14; font-style: normal; font-weight: bold; }
+.picker-row.current { background: #d1e7dd; font-weight: bold; }
+.picker-row .picker-occ { font-size: 10.5px; color: #adb5bd; font-style: italic; }
+.picker-empty { padding: 14px; text-align: center; color: #adb5bd; font-size: 12px; font-style: italic; }
+
+/* ── Shared floating TOOLTIP (shift occupancy) ── */
+#shiftTooltip { position: fixed; z-index: 9999; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity .18s ease, transform .18s ease; min-width: 230px; max-width: 290px; }
+#shiftTooltip.visible { opacity: 1; transform: translateY(0); }
+.tip-card { background: #fff; border: 1.5px solid #b6d4fe; border-radius: 8px; padding: 10px 12px; box-shadow: 0 6px 24px rgba(13,110,253,0.13), 0 2px 8px rgba(0,0,0,0.10); }
+.tip-arrow { width: 12px; height: 7px; margin-left: 18px; overflow: hidden; }
+.tip-arrow::before { content: ''; display: block; width: 12px; height: 12px; background: #fff; border: 1.5px solid #b6d4fe; transform: rotate(45deg) translate(3px, 3px); box-shadow: -2px -2px 5px rgba(13,110,253,0.08); }
+.tip-name { font-weight: bold; color: #0d6efd; font-size: 13px; border-bottom: 1px solid #dee2e6; padding-bottom: 6px; margin-bottom: 7px; display: flex; justify-content: space-between; align-items: center; }
+.tip-badge { font-size: 10px; font-weight: normal; background: #e9ecef; color: #6c757d; padding: 2px 6px; border-radius: 10px; }
+.tip-day-row { font-size: 11px; margin-bottom: 5px; }
+.tip-day-label { font-weight: bold; color: #495057; display:block; margin-bottom:2px; }
+.tip-day-label.is-today { color: #0d6efd; }
+.tip-slot { padding: 2px 0 2px 8px; border-left: 3px solid #0d6efd; margin-bottom: 2px; background: #f8f9fa; border-radius: 0 4px 4px 0; color:#212529; }
+.tip-slot.empty { border-left-color: #dee2e6; color: #adb5bd; font-style: italic; }
+
+/* ── ACTIVITY HISTORY ── */
+#historyModal .modal-box { width: 580px; max-width: 95vw; }
+.history-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.history-filters select, .history-filters input { padding: 5px 8px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; outline: none; background: #fff; }
+.history-filters input { flex: 1; min-width: 130px; }
+#historyList { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.hist-entry { border-radius: 6px; padding: 9px 12px; font-size: 12px; background: #f8f9fa; border: 1px solid #dee2e6; border-left: 4px solid #0d6efd; display: flex; flex-direction: column; gap: 3px; }
+.hist-entry.type-assign  { border-left-color: #198754; }
+.hist-entry.type-clear   { border-left-color: #dc3545; }
+.hist-entry.type-move    { border-left-color: #fd7e14; }
+.hist-entry.type-rename  { border-left-color: #6f42c1; }
+.hist-entry.type-period  { border-left-color: #0dcaf0; }
+.hist-entry.type-tab-act { border-left-color: #20c997; }
+.hist-entry.type-shift-act { border-left-color: #6f42c1; }
+.hist-entry.type-status { border-left-color: #fd7e14; }
+.hist-meta { display: flex; justify-content: space-between; align-items: center; }
+.hist-time { font-size: 10px; color: #6c757d; white-space: nowrap; }
+.hist-badge { font-size: 10px; font-weight: bold; padding: 2px 7px; border-radius: 10px; background: #e9ecef; color: #495057; }
+.hist-badge.assign  { background: #d1e7dd; color: #0f5132; }
+.hist-badge.clear   { background: #f8d7da; color: #842029; }
+.hist-badge.move    { background: #ffe5d0; color: #7c3700; }
+.hist-badge.rename  { background: #e9d8fd; color: #3d0a6e; }
+.hist-badge.period  { background: #cff4fc; color: #055160; }
+.hist-badge.tab-act { background: #d2f4ea; color: #0a3622; }
+.hist-badge.shift-act { background: #e9d8fd; color: #3d0a6e; }
+.hist-badge.status { background: #ffe5d0; color: #7c3700; }
+.hist-desc { color: #212529; line-height: 1.45; }
+.hist-ctx  { font-size: 11px; color: #6c757d; }
+.hist-empty { text-align: center; padding: 30px 0; color: #adb5bd; font-style: italic; font-size: 13px; }
+#histCount { font-size: 11px; color: #6c757d; }
+.history-header-row { display: flex; justify-content: space-between; align-items: center; }
+
+/* ══════════════════════════════════════════════
+   PRINT — black & white, no fills, thin borders
+   ══════════════════════════════════════════════ */
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+
+  header, #periodBar, #tabBar, #empModal, #periodModal, #shiftMgrModal, #statusMgrModal,
+  #empEditModal, #catMgrModal, #groupMgrModal, #categoryLegend,
+  #shiftTooltip, #pickerPanel, .modal-backdrop, .header-btns { display: none !important; }
+
+  body { background: #fff; font-family: Arial, sans-serif; font-size: 7pt; color: #000;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  #contentArea { height: auto !important; overflow: visible !important; padding: 0 !important; background: #fff !important; }
+
+  #rosterView              { display: none !important; }
+  #shiftsView              { display: none !important; padding: 0 !important; }
+  #employeesView           { display: none !important; padding: 0 !important; }
+  #rosterView.print-show   { display: block !important; }
+  #shiftsView.print-show   { display: grid !important; grid-template-columns: repeat(4,1fr) !important; gap: 6px !important; }
+  #employeesView.print-show{ display: grid !important; grid-template-columns: repeat(4,1fr) !important; gap: 6px !important; }
+
+  table.roster {
+    width: 100% !important; border-collapse: collapse !important;
+    margin-bottom: 0 !important; box-shadow: none !important; background: #fff !important;
+  }
+  table.roster tr { page-break-inside: avoid !important; }
+  table.roster thead { display: table-header-group !important; }
+  table.roster th, table.roster td {
+    border: 0.4pt solid #000 !important;
+    padding: 2pt 2pt !important; font-size: 6pt !important;
+    vertical-align: middle !important; overflow: hidden !important;
+    word-break: break-word !important; background: #fff !important; color: #000 !important;
+  }
+  table.roster thead { position: static !important; }
+  th.name-corner { position: static !important; width: 12% !important; text-align:left !important; }
+  td.emp-name-cell { position: static !important; text-align:left !important; }
+  th.day-th { background: #fff !important; color: #000 !important; text-align: center !important; }
+  th.day-th .day-sub { color: #444 !important; }
+  th.day-th.hours-th { font-weight: bold !important; }
+  td.hours-cell { background: #fff !important; color: #000 !important; font-weight: bold !important; text-align: center !important; }
+  .hrs-cum { color: #444 !important; }
+  td.day-slot-cell.rest-violation { box-shadow: none !important; border-right: 1.4pt solid #000 !important; }
+  .day-label-input { color: #000 !important; }
+  .cell-wrap { gap: 1pt !important; min-height: 0 !important; }
+  .chip { background: transparent !important; color: #000 !important; border: 0.4pt solid #000 !important; padding: 1pt 2pt !important; font-size: 5.5pt !important; }
+  .chip .chip-x { display: none !important; }
+  .add-cell-btn { display: none !important; }
+
+  #shiftsView .shift-card {
+    page-break-inside: avoid; border: 0.4pt solid #000 !important;
+    padding: 4pt !important; background: #fff !important;
+    box-shadow: none !important; min-width: 0 !important; max-width: 100% !important;
+  }
+  .shift-card-title { font-size: 7pt !important; font-weight: bold; color: #000 !important; border-bottom: 0.4pt solid #000 !important; }
+  .shift-card-count { font-size: 6pt !important; background: transparent !important; color: #000 !important; border: 0.4pt solid #000 !important; }
+  .shift-card-day  { font-size: 5.5pt !important; color: #000 !important; }
+  .shift-card-slot { font-size: 6pt !important; background: transparent !important; color: #000 !important; border-left: 1pt solid #000 !important; }
+  .shift-card-slot.empty { color: #555 !important; border-left-color: #999 !important; }
+
+  #employeesView .emp-card {
+    page-break-inside: avoid; border: 0.4pt solid #000 !important;
+    padding: 4pt !important; background: #fff !important;
+    box-shadow: none !important; min-width: 0 !important; max-width: 100% !important;
+  }
+  .emp-card-title { font-size: 7pt !important; font-weight: bold; color: #000 !important; border-bottom: 0.4pt solid #000 !important; }
+  .emp-card-copy { display: none !important; }
+  .emp-card-day  { font-size: 6pt !important; background: transparent !important; color: #000 !important; border-left: 1pt solid #000 !important; }
+  .emp-card-day.off-day { color: #555 !important; border-left-color: #999 !important; }
+  .emp-card-day.rest-violation { box-shadow: none !important; border-left: 1.4pt solid #000 !important; }
+  .emp-card-hours { font-size: 6.5pt !important; color: #000 !important; border-top: 0.4pt solid #000 !important; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📅 Weekly Roster — By Name</h1>
+  <div class="header-btns">
+    <span id="saveIndicator" class="save-indicator saved">💾 Saved</span>
+    <label class="exception-toggle">
+      <input type="checkbox" id="allowException"> Allow Double-Booking
+    </label>
+    <button class="btn btn-blue"   id="showRosterBtn">📋 Roster</button>
+    <button class="btn btn-blue"   id="showShiftsBtn">🗂 By Shift</button>
+    <button class="btn btn-blue"   id="showEmployeesBtn">👤 By Employee</button>
+    <button class="btn btn-purple" id="openShiftMgr">🛠 Shifts</button>
+    <button class="btn btn-purple" id="openStatusMgr">🏷 Statuses</button>
+    <button class="btn btn-red"    id="openEmpModal">👥 Employees</button>
+    <button class="btn btn-green"  id="exportBtn">💾 Export</button>
+    <button class="btn btn-green"  id="copyDataBtn">📋 Copy</button>
+    <button class="btn btn-dark"   id="importBtn">📂 Import</button>
+    <button class="btn btn-dark"   id="clearBtn">🗑 Clear Tab</button>
+    <button class="btn btn-dark"   id="printBtn">🖨 Print</button>
+    <button class="btn btn-orange" id="historyBtn">📜 History</button>
+  </div>
+</header>
+<div id="conflictBanner">
+  <span>⚠️ This roster was saved from another laptop since you opened it. Your last change was <b>not</b> sent to the cloud, to avoid overwriting theirs.</span>
+  <button class="reloadBtn" id="conflictReloadBtn">Reload latest (discard my unsaved change)</button>
+</div>
+
+<div id="periodBar">
+  <div id="periodsContainer"></div>
+  <button id="addPeriodBtn" title="Add new roster period">+</button>
+</div>
+
+<div id="tabBar">
+  <div id="tabsContainer"></div>
+  <button id="addTabBtn" title="Add new tab (e.g. a second week)">+</button>
+</div>
+
+<div id="categoryLegend"></div>
+<div id="contentArea">
+  <div id="rosterView"></div>
+  <div id="shiftsView"></div>
+  <div id="employeesView"></div>
+</div>
+
+<div id="shiftTooltip">
+  <div class="tip-arrow"></div>
+  <div class="tip-card">
+    <div class="tip-name"><span id="tipName"></span><span class="tip-badge" id="tipBadge"></span></div>
+    <div id="tipBody"></div>
+  </div>
+</div>
+
+<div id="pickerPanel">
+  <input type="text" id="pickerSearch" placeholder="🔍 Type to search shifts..." autocomplete="off" />
+  <div id="pickerList"></div>
+</div>
+
+<div id="empModal" class="modal-backdrop">
+  <div class="modal-box w340">
+    <div class="modal-title">👥 Manage Employees</div>
+    <div class="emp-modal-subbtns">
+      <button id="openCatMgr" class="btn btn-dark">🎨 Categories</button>
+      <button id="openGroupMgr" class="btn btn-dark">🧩 Groups</button>
+    </div>
+    <div id="modalEmpList"></div>
+    <div style="display:flex;gap:6px;">
+      <input id="modalEmpInput" class="modal-input" placeholder="Employee name..." autocomplete="off" />
+      <button id="modalAddBtn" class="btn btn-blue">+ Add</button>
+    </div>
+    <input type="file" id="csvFileInput" accept=".csv" style="display:none;" />
+    <button id="importCsvBtn" class="btn btn-dark" style="width:100%;">📄 Import CSV</button>
+    <button id="modalCloseBtn" class="btn btn-dark" style="width:100%;">Close</button>
+  </div>
+</div>
+
+<div id="periodModal" class="modal-backdrop">
+  <div class="modal-box w420">
+    <div class="modal-title">📅 New Roster Period</div>
+    <div>
+      <label class="modal-label">Period name <span style="color:#6c757d;font-weight:normal;">(e.g. "Week 19 May")</span></label>
+      <input type="text" id="periodNameInput" class="modal-input" placeholder="Enter period name..." />
+    </div>
+    <div>
+      <label class="modal-label">Start from:</label>
+      <div class="radio-group">
+        <label class="radio-opt"><input type="radio" name="periodType" value="blank" checked><span><strong>Blank</strong> — empty roster with default tabs</span></label>
+        <label class="radio-opt"><input type="radio" name="periodType" value="duplicate"><span><strong>Duplicate</strong> — copy all tabs &amp; assignments from an existing period</span></label>
+        <select id="dupPeriodSource" class="modal-select" style="display:none;margin-top:6px;"><option value="">— Select period to duplicate —</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-dark" id="periodCancelBtn">Cancel</button>
+      <button class="btn btn-blue" id="periodCreateBtn">Create Period</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHIFT MANAGER MODAL -->
+<div id="shiftMgrModal" class="modal-backdrop">
+  <div class="modal-box w520">
+    <div class="modal-title">🛠 Manage Shifts &amp; Slots <span style="font-size:11px;color:#6c757d;font-weight:normal;">(this roster only — new rosters start from these)</span></div>
+    <div id="shiftMgrList"></div>
+    <button id="mgrAddShiftBtn" class="btn btn-blue" style="width:100%;">+ Add Shift</button>
+    <button id="shiftMgrCloseBtn" class="btn btn-dark" style="width:100%;">Close</button>
+  </div>
+</div>
+
+<!-- STATUS (DIARY) MANAGER MODAL -->
+<div id="statusMgrModal" class="modal-backdrop">
+  <div class="modal-box w420">
+    <div class="modal-title">🏷 Manage Day Status Labels <span style="font-size:11px;color:#6c757d;font-weight:normal;">(Off, Sick, Hol, etc.)</span></div>
+    <div id="statusMgrList" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;"></div>
+    <button id="mgrAddStatusBtn" class="btn btn-blue" style="width:100%;">+ Add Status Label</button>
+    <button id="statusMgrCloseBtn" class="btn btn-dark" style="width:100%;">Close</button>
+  </div>
+</div>
+
+<!-- EMPLOYEE EDIT MODAL -->
+<div id="empEditModal" class="modal-backdrop">
+  <div class="modal-box w340">
+    <div class="modal-title">✏️ Edit Employee</div>
+    <div>
+      <label class="modal-label">Name</label>
+      <input id="empEditName" class="modal-input" autocomplete="off" />
+    </div>
+    <div>
+      <label class="modal-label">Employee # <span style="font-weight:normal;color:#6c757d;">(6 digits — 000000 = none)</span></label>
+      <input id="empEditNo" class="modal-input" maxlength="6" placeholder="000000" autocomplete="off" />
+    </div>
+    <div>
+      <label class="modal-label">Category</label>
+      <select id="empEditCategory" class="modal-select"></select>
+    </div>
+    <div>
+      <label class="modal-label">Group</label>
+      <select id="empEditGroup" class="modal-select"></select>
+    </div>
+    <div class="exception-toggle" style="background:#f1f3f5;border-color:#dee2e6;color:#495057;margin:2px 0 8px;">
+      <input type="checkbox" id="empEditWeekOnly" />
+      <label for="empEditWeekOnly" style="cursor:pointer;font-weight:normal;">Apply category/group/availability to this week only <span style="color:#6c757d;">(otherwise sets the default carried forward to every week)</span></label>
+    </div>
+    <div>
+      <label class="modal-label">Availability restrictions <span style="font-weight:normal;color:#6c757d;">(applies to a day of the week, e.g. every Wed; carries forward to every week unless set as this week only, above)</span></label>
+      <div id="empEditAvailList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <button id="empEditAvailAddBtn" class="btn btn-dark" style="width:100%;margin-top:4px;">+ Add day restriction</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-dark" id="empEditCancelBtn">Cancel</button>
+      <button class="btn btn-blue" id="empEditSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CATEGORY MANAGER MODAL -->
+<div id="catMgrModal" class="modal-backdrop">
+  <div class="modal-box w420">
+    <div class="modal-title">🎨 Manage Categories <span style="font-size:11px;color:#6c757d;font-weight:normal;">(colour legend)</span></div>
+    <div id="catMgrList" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;"></div>
+    <button id="mgrAddCatBtn" class="btn btn-blue" style="width:100%;">+ Add Category</button>
+    <button id="catMgrCloseBtn" class="btn btn-dark" style="width:100%;">Close</button>
+  </div>
+</div>
+
+<!-- GROUP MANAGER MODAL -->
+<div id="groupMgrModal" class="modal-backdrop">
+  <div class="modal-box w420">
+    <div class="modal-title">🧩 Manage Groups <span style="font-size:11px;color:#6c757d;font-weight:normal;">(clusters names together in the list)</span></div>
+    <div id="groupMgrList" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;"></div>
+    <button id="mgrAddGroupBtn" class="btn btn-blue" style="width:100%;">+ Add Group</button>
+    <button id="groupMgrCloseBtn" class="btn btn-dark" style="width:100%;">Close</button>
+  </div>
+</div>
+
+<!-- ACTIVITY HISTORY MODAL -->
+<div id="historyModal" class="modal-backdrop">
+  <div class="modal-box" style="width:580px;max-width:95vw;">
+    <div class="history-header-row">
+      <div class="modal-title">📜 Activity History</div>
+      <button id="clearHistoryBtn" class="btn btn-red" style="font-size:11px;padding:4px 9px;">🗑 Clear All</button>
+    </div>
+    <div class="history-filters">
+      <input type="text" id="histSearch" placeholder="🔍 Search person or shift…" />
+      <select id="histTypeFilter">
+        <option value="">All types</option>
+        <option value="assign">Assigned</option>
+        <option value="clear">Cleared</option>
+        <option value="move">Moved</option>
+        <option value="rename">Renamed</option>
+        <option value="period">Period</option>
+        <option value="tab-act">Tab</option>
+        <option value="shift-act">Shift</option>
+        <option value="status">Status</option>
+      </select>
+      <select id="histPeriodFilter">
+        <option value="">All periods</option>
+      </select>
+    </div>
+    <div id="histCount"></div>
+    <div id="historyList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-dark" id="historyCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_EMPLOYEES = [
+  "Ahmet Bilgin","Ali Arshad","Ali Shaher","Amine Ahmat","Anderson Andrade",
+  "Anisse Naceur","Badugu Kranthikumar","Balu Gundameedi","Berat Akbulut",
+  "Bouba Mamudou","Boubaker Mejri","Bruno Rodrighero","Caio Neto","Cassio Crosara",
+  "Christopher Omoregie","Cleiton Mota","Crispen Mthombeni","Dhanraj Manesh",
+  "Dhiogo Meshiati","Eduardo Silveira","Egidijus Sinkunas","Emiliano Ramalho",
+  "Fazulul Waleeth","Fernando Matile","Francois Kunbi","Fuad Muhammed",
+  "Gabriel Sacconi","Giedrius Blazevicius","Gleidson Oliveira","Hamza Derrouiche",
+  "Hamza Kinas","Hardeep Singh","Helder Biottulfe","Iury Pires","Jack Lydon",
+  "Jakub Stanik","Jhonata Santos","Josias Leal","Kaue Fernandes","Kemoko Camara",
+  "Leonardo Ferrazoli","Maicon Silva","Marcin Antoszac","Martinho Souza",
+  "Martins Teicans","Matheus Silva","Michael Kumah","Mickel Lisboa",
+  "Mitterrant Tchouha","Muhammad Sufyan","Muhammet Selen","Muhammet Topcu",
+  "Mustafa Durak","Navin Kadam","Nitesh Thota","Not Operating","Pablo Carvalho",
+  "Paul Hayes","Paul Stamper","Pedro Collin","Piotr Ferfecki","Prahaladh Lagadapati",
+  "Pramodh Lagadapati","Prem Kayala","Prudhvi Chankarla","Rafael Falcao",
+  "Rahul Kalayan","Rajendar Naik","Ramu Namburi","Richard Fernands",
+  "Robert Skarinovics","Robson Gomes","Rohith Rolla","Roma Simsons","Rudson Soares",
+  "Saheed Sonariwo","Sasa Surbanovic","Savas Akyuz","Shane Smithers","Sidali Mouloud",
+  "Soufyane Mezroua","Sri Hari","Sullaiman Issa","Tiago Freitas","Umer Tilal",
+  "Vinicius Goes","Vinicius Lima","Virginijus Vydmantas","Wayne Clarke",
+  "Wellington Santos","Weslley Pereira","Wilson Souza","Yasin Shaik","Yusuf Makajuola"
+];
+
+const DAYS = ['Fri','Sat','Sun','Mon','Tue','Wed','Thu'];
+const DEFAULT_SLOT_NAMES = ['Slot 1', 'Slot 2'];
+const DEFAULT_STATUS_TYPES = [
+  { id: 'off',  label: 'Off',  color: '#6c757d', hoursMode: 'none' },
+  { id: 'sick', label: 'Sick', color: '#dc3545', hoursMode: 'none' },
+  { id: 'hol',  label: 'Hol',  color: '#198754', hoursMode: 'paid8' }
+];
+const STORAGE_KEY = 'weeklyRosterByName-v1';
+const HISTORY_KEY = 'weeklyRosterByNameHistory-v1';
+const MAX_HISTORY = 500;
+
+// ── CLOUD SYNC ───────────────────────────────────────────────────────────────
+// Paste the Apps Script Web App URL here after deploying RosterCode.gs (ends in /exec).
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx32VrryYh7RuRaT0u7d5-6jL20dbzsOcYQ1whqwyQvz-ABVKIx2y1USGibMLmngWqV/exec';
+let cloudVersion = null;   // the version number this browser last loaded/saved
+let cloudSavedAt = null;
+let cloudConflict = false; // true once a save has been rejected — blocks further saves until reload
+
+// ── ACTIVITY HISTORY ─────────────────────────────────────────────────────────
+let activityHistory = [];
+function loadHistory() {
+  try { const s = lsGet(HISTORY_KEY); if (s) activityHistory = JSON.parse(s); } catch(e) { activityHistory = []; }
+}
+function saveHistory() {
+  if (activityHistory.length > MAX_HISTORY) activityHistory = activityHistory.slice(0, MAX_HISTORY);
+  try { lsSet(HISTORY_KEY, JSON.stringify(activityHistory)); } catch(e) {}
+  saveData(); // activityHistory now also travels in the main cloud payload
+}
+function logActivity(type, desc, ctx) {
+  activityHistory.unshift({ id: Date.now()+Math.random(), type, desc, ctx: ctx||'', time: new Date().toISOString() });
+  saveHistory();
+}
+function formatHistTime(iso) {
+  const diff = (Date.now() - new Date(iso)) / 1000;
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return Math.floor(diff/60)+'m ago';
+  if (diff < 86400) return Math.floor(diff/3600)+'h ago';
+  const days = Math.floor(diff/86400);
+  if (days < 7) return days+'d ago';
+  return new Date(iso).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+function badgeLabel(type) {
+  return {assign:'Assigned',clear:'Cleared',move:'Moved',rename:'Renamed',period:'Period','tab-act':'Tab','shift-act':'Shift',status:'Status'}[type]||type;
+}
+function renderHistoryModal() {
+  const search  = document.getElementById('histSearch').value.toLowerCase().trim();
+  const typeF   = document.getElementById('histTypeFilter').value;
+  const pf      = document.getElementById('histPeriodFilter');
+  const savedPF = pf.value;
+  const usedPeriods = [...new Set(activityHistory.map(e => e.ctx.split(' · ')[0]).filter(Boolean))];
+  pf.innerHTML = '<option value="">All periods</option>';
+  usedPeriods.forEach(p => { const o=document.createElement('option'); o.value=p; o.textContent=p; pf.appendChild(o); });
+  if (savedPF) pf.value = savedPF;
+  const periodF = pf.value;
+
+  let filtered = activityHistory;
+  if (typeF)   filtered = filtered.filter(e => e.type === typeF);
+  if (periodF) filtered = filtered.filter(e => e.ctx.startsWith(periodF));
+  if (search)  filtered = filtered.filter(e => (e.desc+e.ctx).toLowerCase().includes(search));
+
+  document.getElementById('histCount').textContent =
+    filtered.length === activityHistory.length
+      ? `${activityHistory.length} entr${activityHistory.length!==1?'ies':'y'}`
+      : `Showing ${filtered.length} of ${activityHistory.length}`;
+
+  const list = document.getElementById('historyList');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="hist-empty">${activityHistory.length ? '🔍 No entries match your filters.' : '📭 No activity recorded yet.\nChanges you make will appear here.'}</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(e => `
+    <div class="hist-entry type-${e.type}">
+      <div class="hist-meta">
+        <span class="hist-badge ${e.type}">${badgeLabel(e.type)}</span>
+        <span class="hist-time" title="${new Date(e.time).toLocaleString()}">${formatHistTime(e.time)}</span>
+      </div>
+      <div class="hist-desc">${esc(e.desc)}</div>
+      ${e.ctx ? `<div class="hist-ctx">📌 ${esc(e.ctx)}</div>` : ''}
+    </div>`).join('');
+}
+function openHistoryModal() { renderHistoryModal(); document.getElementById('historyModal').classList.add('open'); }
+// ── END ACTIVITY HISTORY ─────────────────────────────────────────────────────
+
+let periods = [], activePeriod = 0, activeTab = 0;
+let statusTypes = [];
+let categories = [];  // { id, label, color } — global colour legend, shared across periods
+let groups = [];      // array of group names, in display-priority order — global, shared across periods
+// Employees and their base details are shared across the WHOLE app (every
+// period, every tab) — adding, removing, or renaming an employee, or setting
+// their employee number/category/group here, applies everywhere.
+let employees = [];       // array of names — global, shared across every period/tab
+let employeeMeta = {};    // { name: { empNo, category, group } } — global defaults, auto-applied to every week
+let activePage = 'roster', allowExceptions = false;
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function lsGet(k) { try { return localStorage.getItem(k); } catch(e) { return null; } }
+function lsSet(k,v){ try { localStorage.setItem(k,v); return true; } catch(e) { return false; } }
+
+// ── Data model: shift = { title, color, slotNames:[...], slots: [ [7 day values]... one array per slot ] } ──
+// tab.statusAssignments = { "empName||dayIdx": statusId }  (diary-style day statuses: Off, Sick, Hol, etc.)
+function makeBlankTab(name) {
+  const data = [];
+  for (let s = 0; s < 4; s++) {
+    const shift = { title: 'Shift '+(s+1), color: '', slotNames: DEFAULT_SLOT_NAMES.slice(), slots: [] };
+    for (let sl = 0; sl < 2; sl++) shift.slots.push(new Array(DAYS.length).fill(''));
+    data.push(shift);
+  }
+  return { name, data, statusAssignments: {}, dayLabels: DAYS.slice() };
+}
+function makeDefaultPeriod(name) { return { name, tabs: [makeBlankTab('Tab 1')], employees: DEFAULT_EMPLOYEES.slice() }; }
+// Day headers (e.g. "Fri 28") are independent per tab — each week of a
+// fortnight pair keeps its own manually-typed dates, they are never copied
+// or auto-continued between Week 1 and Week 2.
+function ensureDayLabels(tab) {
+  if (!tab.dayLabels || tab.dayLabels.length !== DAYS.length) tab.dayLabels = DAYS.slice();
+}
+function currentDayLabels() { ensureDayLabels(currentTab()); return currentTab().dayLabels; }
+function ensureStatusAssignments(tab) { if (!tab.statusAssignments) tab.statusAssignments = {}; }
+
+function deepCopyPeriod(period, newName) {
+  // employees/employeeMeta are global now (shared across the whole app), so
+  // duplicating a period doesn't need to copy them — only each tab's own
+  // local overrides (category/group) and availability travel with the copy.
+  return {
+    name: newName,
+    tabs: period.tabs.map(t => ({
+      name: t.name,
+      dayLabels: (t.dayLabels || DAYS).slice(),
+      metaOverride: JSON.parse(JSON.stringify(t.metaOverride || {})),
+      availability: JSON.parse(JSON.stringify(t.availability || {})),
+      statusAssignments: Object.assign({}, t.statusAssignments || {}),
+      data: t.data.map(shift => ({
+        title: shift.title,
+        color: shift.color || '',
+        slotNames: shift.slotNames.slice(),
+        slots: shift.slots.map(row => row.slice()),
+        startTime: shift.startTime || '',
+        finishTime: shift.finishTime || ''
+      }))
+    }))
+  };
+}
+function deepCopyTab(tab, newName) {
+  return {
+    name: newName,
+    dayLabels: (tab.dayLabels || DAYS).slice(),
+    metaOverride: JSON.parse(JSON.stringify(tab.metaOverride || {})),
+    availability: JSON.parse(JSON.stringify(tab.availability || {})),
+    statusAssignments: Object.assign({}, tab.statusAssignments || {}),
+    data: tab.data.map(shift => ({
+      title: shift.title,
+      color: shift.color || '',
+      slotNames: shift.slotNames.slice(),
+      slots: shift.slots.map(row => row.slice()),
+      startTime: shift.startTime || '',
+      finishTime: shift.finishTime || ''
+    }))
+  };
+}
+
+// Patch legacy / mismatched data
+function ensureSlotNames(shift) {
+  if (!shift.slotNames || shift.slotNames.length !== shift.slots.length) {
+    const names = [];
+    for (let i = 0; i < shift.slots.length; i++) names.push((shift.slotNames && shift.slotNames[i]) || ('Slot '+(i+1)));
+    shift.slotNames = names;
+  }
+}
+function ensureDayLength(shift) {
+  shift.slots.forEach(row => {
+    while (row.length < DAYS.length) row.push('');
+    if (row.length > DAYS.length) row.length = DAYS.length;
+  });
+}
+function ensureShiftTimes(shift) {
+  if (shift.startTime === undefined) shift.startTime = '';
+  if (shift.finishTime === undefined) shift.finishTime = '';
+}
+function ensureStatusHoursMode(st) { if (!st.hoursMode) st.hoursMode = 'none'; }
+
+// ── Hours calculation (shift durations, weekly & two-week totals, rest gaps) ──
+function timeToMinutes(t) {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+function shiftDurationHours(shift) {
+  const start = timeToMinutes(shift.startTime), finish = timeToMinutes(shift.finishTime);
+  if (start === null || finish === null) return 0;
+  let end = finish;
+  if (end <= start) end += 24 * 60; // overnight shift crossing midnight
+  return (end - start) / 60;
+}
+// Sum of hours (worked + paid-holiday) an employee has in one tab (one week)
+function computeWeeklyHours(tab, empName) {
+  let total = 0;
+  DAYS.forEach((_, di) => {
+    const statusId = getStatus(tab, empName, di);
+    if (statusId) {
+      const st = getStatusType(statusId);
+      if (st && st.hoursMode === 'paid8') total += 8;
+      return;
+    }
+    findAssignmentsInTab(tab, empName, di).forEach(m => { total += shiftDurationHours(tab.data[m.si]); });
+  });
+  return total;
+}
+// Tabs are paired fortnightly by index: (0,1), (2,3)... On the second tab of a
+// pair, the total shown is the combined hours of both weeks in that pair.
+function pairStartIndex(tabIndex) { return tabIndex % 2 === 0 ? tabIndex : tabIndex - 1; }
+// Shifts (title, colour, start/finish time, slot names) are shared as a
+// starting template across the app: a brand new tab or period is seeded with
+// whatever shifts already exist elsewhere, so you're not rebuilding a shift
+// list — and hours — from scratch every time. After that, each roster's
+// shifts are independent: editing a shift's time, colour, title, or slots in
+// one roster only affects that roster, it does not ripple out to any other
+// week or period.
+function allTabsEverywhere() {
+  const out = [];
+  periods.forEach(p => p.tabs.forEach(t => out.push(t)));
+  return out;
+}
+function mirrorShiftDefsOntoTab(sourceTab, target) {
+  sourceTab.data.forEach((shift, si) => {
+    if (!target.data[si]) {
+      target.data[si] = { title: shift.title, color: shift.color, slotNames: shift.slotNames.slice(),
+        slots: shift.slotNames.map(() => new Array(DAYS.length).fill('')), startTime: shift.startTime, finishTime: shift.finishTime };
+    } else {
+      target.data[si].title = shift.title;
+      target.data[si].color = shift.color;
+      target.data[si].slotNames = shift.slotNames.slice();
+      target.data[si].startTime = shift.startTime;
+      target.data[si].finishTime = shift.finishTime;
+      // Keep target's slot row count in step with source's slot count,
+      // preserving existing assignment data for rows that still exist.
+      while (target.data[si].slots.length < shift.slotNames.length) target.data[si].slots.push(new Array(DAYS.length).fill(''));
+      if (target.data[si].slots.length > shift.slotNames.length) target.data[si].slots.length = shift.slotNames.length;
+    }
+  });
+  // Remove any extra shifts in target beyond what source now has.
+  if (target.data.length > sourceTab.data.length) target.data.length = sourceTab.data.length;
+}
+function computeCumulativeHours(period, tabIndex, empName) {
+  let total = 0;
+  for (let i = pairStartIndex(tabIndex); i <= tabIndex; i++) {
+    if (period.tabs[i]) total += computeWeeklyHours(period.tabs[i], empName);
+  }
+  return total;
+}
+function fmtHours(h) { return (Math.round(h * 100) / 100).toString().replace(/\.0+$/, '') + 'h'; }
+// Earliest start / latest finish (in minutes from that day's own midnight,
+// finish may exceed 1440 for an overnight shift) an employee is rostered on a
+// given day — or null if they have no timed shift assignment that day.
+function getDayShiftSpan(tab, empName, di) {
+  const matches = findAssignmentsInTab(tab, empName, di);
+  let start = null, end = null;
+  matches.forEach(m => {
+    const shift = tab.data[m.si];
+    const s = timeToMinutes(shift.startTime);
+    if (s === null) return;
+    const dur = shiftDurationHours(shift);
+    const e = s + dur * 60;
+    if (start === null || s < start) start = s;
+    if (end === null || e > end) end = e;
+  });
+  if (start === null) return null;
+  return { start, end };
+}
+// True if the gap between today's (di) last finish and tomorrow's (di+1)
+// first start is under the 11-hour statutory rest period.
+function hasRestViolation(tab, empName, di) {
+  if (di >= DAYS.length - 1) return false;
+  const today = getDayShiftSpan(tab, empName, di);
+  const tomorrow = getDayShiftSpan(tab, empName, di + 1);
+  if (!today || !tomorrow) return false;
+  const gapMinutes = (1440 + tomorrow.start) - today.end;
+  return gapMinutes < 11 * 60;
+}
+// True if any shift the employee is assigned to on day di falls outside a
+// declared availability restriction for that day (e.g. only free 10:00–18:00).
+function hasAvailabilityViolation(tab, empName, di, matches) {
+  const meta = getEmpMeta(empName);
+  const restriction = (meta.availability || []).find(a => a.day === di);
+  if (!restriction) return false;
+  const winStart = timeToMinutes(restriction.start), winEnd = timeToMinutes(restriction.end);
+  if (winStart === null || winEnd === null) return false;
+  return matches.some(m => {
+    const shift = tab.data[m.si];
+    const s = timeToMinutes(shift.startTime), f = timeToMinutes(shift.finishTime);
+    if (s === null || f === null) return false;
+    let end = f; if (end <= s) end += 24 * 60;
+    return s < winStart || end > winEnd;
+  });
+}
+// Human-readable explanation of the restriction behind an availability
+// warning icon, e.g. "Only available 10:00–18:00 on Fri — this shift is
+// 08:00–16:00", shown as a tooltip on hover so the reason isn't hidden.
+function describeAvailabilityViolation(tab, empName, di, matches) {
+  const meta = getEmpMeta(empName);
+  const restriction = (meta.availability || []).find(a => a.day === di);
+  if (!restriction) return 'Outside this employee\'s declared availability';
+  const specificLabel = currentDayLabels()[di];
+  const dayLabel = (specificLabel && specificLabel !== DAYS[di]) ? `${DAYS[di]} (${specificLabel})` : DAYS[di];
+  const winStart = restriction.start || '?', winEnd = restriction.end || '?';
+  const conflicting = matches.map(m => tab.data[m.si]).filter(shift => {
+    const s = timeToMinutes(shift.startTime), f = timeToMinutes(shift.finishTime);
+    if (s === null || f === null) return false;
+    const winS = timeToMinutes(restriction.start), winE = timeToMinutes(restriction.end);
+    if (winS === null || winE === null) return false;
+    let end = f; if (end <= s) end += 24 * 60;
+    return s < winS || end > winE;
+  });
+  const shiftTimes = conflicting.map(s => `${s.startTime || '?'}–${s.finishTime || '?'}`).join(', ');
+  return `Only available ${winStart}–${winEnd} on ${dayLabel}${shiftTimes ? ` — this shift is ${shiftTimes}` : ''}`;
+}
+
+function currentPeriod()    { return periods[activePeriod]; }
+function currentTabs()      { return currentPeriod().tabs; }
+function currentTab()       { return currentTabs()[activeTab]; }
+// Employees are shared globally across the whole app.
+function currentEmployees() { ensureEmployeesGlobal(); return employees; }
+function ensureEmployeesGlobal() { if (!employees || !employees.length) employees = DEFAULT_EMPLOYEES.slice(); }
+
+// ── Employee metadata ──────────────────────────────────────────────────────
+// empNo/category/group/availability live in the GLOBAL employeeMeta and are
+// the default automatically carried forward to every week (e.g. Emiliano is
+// free every day except restricted Wed & Thu, and Fri until 12:00 — that
+// default applies to every new week). A specific week (tab) can locally
+// override category/group/availability via tab.metaOverride/tab.availability
+// — that override only affects that one tab and never touches the global
+// default or any other week.
+function ensureEmployeeMetaGlobal() {
+  if (!employeeMeta) employeeMeta = {};
+}
+function ensureTabOverrides(tab) {
+  if (!tab.metaOverride) tab.metaOverride = {};
+  if (!tab.availability) tab.availability = {};
+}
+function getGlobalEmpMeta(name) {
+  ensureEmployeeMetaGlobal();
+  if (!employeeMeta[name]) employeeMeta[name] = { empNo: '000000', category: '', group: '', availability: [] };
+  if (!employeeMeta[name].availability) employeeMeta[name].availability = [];
+  return employeeMeta[name];
+}
+// Effective meta for `name` on the CURRENT tab: global defaults for
+// empNo/category/group/availability, with this tab's local override (if any)
+// taking precedence for category/group and, separately, for availability.
+// A restriction set as the global default (e.g. Emiliano: free every day
+// except restricted Wed & Thu, and Fri until 12:00) automatically carries
+// forward to every week — editing it on one specific week only diverges that
+// week, it doesn't change the default or any other week.
+function getEmpMeta(name) {
+  const base = getGlobalEmpMeta(name);
+  const tab = currentTab();
+  ensureTabOverrides(tab);
+  const ov = tab.metaOverride[name] || {};
+  const hasAvailOverride = Object.prototype.hasOwnProperty.call(tab.availability, name);
+  return {
+    empNo: base.empNo,
+    category: ('category' in ov) ? ov.category : base.category,
+    group: ('group' in ov) ? ov.group : base.group,
+    availability: hasAvailOverride ? tab.availability[name] : base.availability
+  };
+}
+function getCategory(id) { return categories.find(c => c.id === id) || null; }
+// Employees sort alphabetically within their group; grouped employees are
+// clustered together (in group-creation order) ahead of everyone ungrouped.
+function sortedEmployees() {
+  const emps = currentEmployees().slice();
+  return emps.sort((a, b) => {
+    const ga = getEmpMeta(a).group || '';
+    const gb = getEmpMeta(b).group || '';
+    const ia = ga ? groups.indexOf(ga) : -1;
+    const ib = gb ? groups.indexOf(gb) : -1;
+    const ra = ia === -1 ? 9999 : ia;
+    const rb = ib === -1 ? 9999 : ib;
+    if (ra !== rb) return ra - rb;
+    if (ga !== gb) return ga.localeCompare(gb);
+    return a.localeCompare(b);
+  });
+}
+// Renders the name-cell contents: category colour dot + name + (employee #)
+function empNameCellHtml(name) {
+  const m = getEmpMeta(name);
+  const cat = m.category ? getCategory(m.category) : null;
+  const dot = cat ? `<span class="cat-dot" style="background:${esc(cat.color)}" title="${esc(cat.label)}"></span>` : '';
+  const no = m.empNo && m.empNo !== '000000' ? ` <span class="emp-no">(${esc(m.empNo)})</span>` : '';
+  return `${dot}${esc(name)}${no}`;
+}
+
+let saveTimer = null;
+function setSaveStatus(status, msg) {
+  const el = document.getElementById('saveIndicator');
+  el.className = 'save-indicator ' + status;
+  el.textContent = msg;
+}
+function saveData() {
+  if (cloudConflict) return; // a save was already rejected — wait for the user to reload before trying again
+  setSaveStatus('saving', '⏳ Saving…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const payload = { periods, statusTypes, categories, groups, employees, employeeMeta, activityHistory, version: '1.5' };
+    lsSet(STORAGE_KEY, JSON.stringify(payload)); // local cache — always kept up to date as an offline backup
+    syncToCloud(payload);
+  }, 600);
+}
+function syncToCloud(payload) {
+  if (!SCRIPT_URL || SCRIPT_URL.indexOf('PASTE_') === 0) { setSaveStatus('offline', '📴 No cloud endpoint set'); return; }
+  fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids a CORS preflight to Apps Script
+    body: JSON.stringify({ expectedVersion: cloudVersion, data: payload })
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (res.ok) {
+        cloudVersion = res.version;
+        cloudSavedAt = res.savedAt;
+        setSaveStatus('saved', '☁️ Saved');
+      } else if (res.conflict) {
+        cloudConflict = true;
+        setSaveStatus('error', '⚠️ Not saved — conflict');
+        document.getElementById('conflictBanner').classList.add('show');
+      } else {
+        setSaveStatus('error', '❌ Save failed');
+      }
+    })
+    .catch(() => setSaveStatus('offline', '📴 Offline — saved locally only'));
+}
+document.getElementById('conflictReloadBtn').addEventListener('click', () => { location.reload(); });
+// Legacy migration helper: folds an old-format per-period employees list and
+// employeeMeta (which used to include availability) into the new global
+// employees/employeeMeta store, moving each employee's availability into
+// every tab of that period (preserving old behaviour — it was previously
+// shared across the period's tabs — while making it independently editable
+// per tab from now on).
+function migrateLegacyPeriodEmployees(p, fallbackEmployees) {
+  const legacyNames = (p.employees && p.employees.length) ? p.employees : (fallbackEmployees || []);
+  legacyNames.forEach(name => {
+    if (!employees.includes(name)) employees.push(name);
+  });
+  const legacyMeta = p.employeeMeta || {};
+  Object.keys(legacyMeta).forEach(name => {
+    const lm = legacyMeta[name];
+    if (!employeeMeta[name]) employeeMeta[name] = { empNo: lm.empNo || '000000', category: lm.category || '', group: lm.group || '', availability: (lm.availability && lm.availability.length) ? JSON.parse(JSON.stringify(lm.availability)) : [] };
+  });
+  delete p.employees;
+  delete p.employeeMeta;
+}
+function applyParsedState(parsed) {
+  periods = [];
+  statusTypes = DEFAULT_STATUS_TYPES.map(s => Object.assign({}, s));
+  categories = [];
+  groups = [];
+  employees = [];
+  employeeMeta = {};
+  activityHistory = [];
+  let legacyEmployees = null;
+  let savedVersion = null;
+  try {
+    if (parsed) {
+      savedVersion = parsed.version || null;
+      // Older saves (v1.1 and earlier) kept a single shared employees list — migrate
+      // it into each period individually so periods no longer share one name list.
+      if (parsed.employees && parsed.employees.length) legacyEmployees = parsed.employees.slice();
+      if (parsed.periods && parsed.periods.length) periods = parsed.periods;
+      if (parsed.statusTypes && parsed.statusTypes.length) statusTypes = parsed.statusTypes;
+      if (parsed.categories && parsed.categories.length) categories = parsed.categories;
+      if (parsed.groups && parsed.groups.length) groups = parsed.groups;
+      // v1.4+: employees/employeeMeta live at the top level, global to the app.
+      if (parsed.employeeMeta) employeeMeta = parsed.employeeMeta;
+      if (parsed.employees && parsed.periods) employees = parsed.employees.slice();
+      // v1.5+: activityHistory travels with the main state (cloud sync); older
+      // local-only saves kept it in a separate key, restored by loadHistory() below.
+      if (parsed.activityHistory && parsed.activityHistory.length) activityHistory = parsed.activityHistory;
+    }
+  } catch(e) { console.error('Load error:', e); }
+  if (!activityHistory.length) loadHistory(); // fallback to the legacy separate local key
+  if (!periods.length) periods = [makeDefaultPeriod('Roster 1')];
+  periods.forEach(p => {
+    // Legacy migration: earlier versions stored one shared dayLabels array
+    // per period. Give each tab its own independent copy of it (once) so
+    // existing dates survive, then day headers are edited per-tab from here on.
+    if (p.dayLabels) {
+      p.tabs.forEach(t => { if (!t.dayLabels) t.dayLabels = p.dayLabels.slice(); });
+      delete p.dayLabels;
+    }
+    // Legacy migration: fold this period's own employees/employeeMeta (incl.
+    // availability) into the new global store + per-tab availability.
+    if (p.employees || p.employeeMeta) migrateLegacyPeriodEmployees(p, legacyEmployees);
+    p.tabs.forEach(t => { ensureDayLabels(t); ensureTabOverrides(t); ensureStatusAssignments(t); t.data.forEach(shift => { ensureDayLength(shift); ensureSlotNames(shift); if (shift.color === undefined) shift.color = ''; ensureShiftTimes(shift); }); });
+  });
+  // One-time cleanup (v1.5): availability restrictions used to be written
+  // straight onto every tab with no concept of "this week only" — those
+  // entries are leftover noise, not deliberate per-week exceptions, and they
+  // were wrongly blocking the global default from carrying forward to those
+  // weeks. Clear them so every week correctly follows the shared default
+  // from here on; deliberately re-apply the "this week only" checkbox for
+  // any genuine week-specific exception going forward.
+  if (savedVersion !== '1.5') {
+    periods.forEach(p => p.tabs.forEach(t => { t.availability = {}; }));
+  }
+  ensureEmployeesGlobal();
+  ensureEmployeeMetaGlobal();
+  activePeriod = Math.min(activePeriod, periods.length - 1);
+  activeTab    = Math.min(activeTab, currentTabs().length - 1);
+  statusTypes.forEach(ensureStatusHoursMode);
+}
+async function loadData() {
+  let parsed = null;
+  let cloudOk = false;
+  if (SCRIPT_URL && SCRIPT_URL.indexOf('PASTE_') !== 0) {
+    try {
+      const res = await fetch(SCRIPT_URL + '?t=' + Date.now(), { cache: 'no-store' });
+      const state = await res.json();
+      cloudVersion = state.version;
+      cloudSavedAt = state.savedAt;
+      if (state.data) { parsed = state.data; cloudOk = true; }
+    } catch (e) { /* offline or endpoint unreachable — fall back to the local copy below */ }
+  }
+  if (!parsed) {
+    try { const saved = lsGet(STORAGE_KEY); if (saved) parsed = JSON.parse(saved); } catch (e) { console.error('Local load error:', e); }
+  }
+  applyParsedState(parsed);
+  if (SCRIPT_URL && SCRIPT_URL.indexOf('PASTE_') !== 0) {
+    if (cloudOk) {
+      setSaveStatus('saved', '☁️ Loaded');
+    } else {
+      // Cloud is empty (first run) or unreachable — push this browser's existing
+      // data up as the seed, or just note we're working offline for now.
+      setSaveStatus(parsed ? 'saving' : 'offline', parsed ? '⏳ Uploading existing roster…' : '📴 Offline — using local copy');
+      if (parsed) syncToCloud({ periods, statusTypes, categories, groups, employees, employeeMeta, activityHistory, version: '1.5' });
+    }
+  } else {
+    setSaveStatus('offline', '📴 No cloud endpoint set');
+  }
+}
+
+// ── PERIOD BAR ──────────────────────────────────────────────────────────────
+function renderPeriodBar() {
+  const c = document.getElementById('periodsContainer');
+  c.innerHTML = '';
+  periods.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'period-item' + (i === activePeriod ? ' active' : '');
+    div.innerHTML = `<span class="period-name">${esc(p.name)}</span>` +
+      (periods.length > 1 ? `<span class="del-period" data-i="${i}" title="Delete period">✕</span>` : '');
+    div.querySelector('.period-name').addEventListener('dblclick', () => startRenamePeriod(i));
+    div.addEventListener('click', e => { if (e.target.classList.contains('del-period')) return; activePeriod = i; activeTab = 0; render(); });
+    const del = div.querySelector('.del-period');
+    if (del) del.addEventListener('click', e => { e.stopPropagation(); deletePeriod(i); });
+    c.appendChild(div);
+  });
+}
+function startRenamePeriod(i) {
+  const span = document.querySelectorAll('.period-name')[i];
+  const oldName = periods[i].name;
+  span.contentEditable = 'true'; span.focus();
+  span.onblur = () => {
+    const newName = span.textContent.trim() || 'Roster '+(i+1);
+    if (newName !== oldName) logActivity('rename', `Period renamed: "${oldName}" → "${newName}"`, '');
+    periods[i].name = newName; span.contentEditable='false'; saveData(); renderPeriodBar();
+  };
+  span.onkeydown = e => { if (e.key==='Enter') { e.preventDefault(); span.blur(); } };
+}
+function deletePeriod(i) {
+  if (!confirm(`Delete roster period "${periods[i].name}" and all its data?`)) return;
+  logActivity('period', `Period deleted: "${periods[i].name}"`, '');
+  periods.splice(i, 1);
+  if (activePeriod >= periods.length) activePeriod = periods.length - 1;
+  activeTab = 0; saveData(); render();
+}
+
+// ── TAB BAR ─────────────────────────────────────────────────────────────────
+function renderTabBar() {
+  const c = document.getElementById('tabsContainer');
+  c.innerHTML = '';
+  currentTabs().forEach((t, i) => {
+    const div = document.createElement('div');
+    div.className = 'tab' + (i === activeTab ? ' active' : '');
+    div.innerHTML = `<span class="tab-name">${esc(t.name)}</span>` +
+      (currentTabs().length > 1 ? `<span class="del-tab" data-i="${i}" title="Delete tab">✕</span>` : '');
+    div.querySelector('.tab-name').addEventListener('dblclick', () => startRenameTab(i));
+    div.addEventListener('click', e => { if (e.target.classList.contains('del-tab')) return; activeTab = i; render(); });
+    const del = div.querySelector('.del-tab');
+    if (del) del.addEventListener('click', e => { e.stopPropagation(); deleteTab(i); });
+    c.appendChild(div);
+  });
+}
+function startRenameTab(i) {
+  const span = document.querySelectorAll('.tab-name')[i];
+  const oldName = currentTabs()[i].name;
+  span.contentEditable = 'true'; span.focus();
+  span.onblur = () => {
+    const newName = span.textContent.trim() || 'Tab '+(i+1);
+    if (newName !== oldName) logActivity('rename', `Tab renamed: "${oldName}" → "${newName}"`, currentPeriod().name);
+    currentTabs()[i].name = newName; span.contentEditable='false'; saveData(); renderTabBar();
+  };
+  span.onkeydown = e => { if (e.key==='Enter') { e.preventDefault(); span.blur(); } };
+}
+function deleteTab(i) {
+  if (!confirm(`Delete tab "${currentTabs()[i].name}"?`)) return;
+  logActivity('tab-act', `Tab deleted: "${currentTabs()[i].name}"`, currentPeriod().name);
+  currentTabs().splice(i, 1);
+  if (activeTab >= currentTabs().length) activeTab = currentTabs().length - 1;
+  saveData(); render();
+}
+function addTab() {
+  const tabs = currentTabs();
+  const n = tabs.length + 1;
+  // Tabs pair up fortnightly by position (1st & 2nd = a Week 1/Week 2 pair,
+  // 3rd & 4th = the next pair, etc.) — see computeCumulativeHours().
+  const label = (n % 2 === 0) ? `Week ${n/2} — 2` : `Week ${Math.ceil(n/2)} — 1`;
+  const tab = makeBlankTab(label);
+  tab.data.forEach(shift => ensureShiftTimes(shift));
+  tabs.push(tab);
+  activeTab = tabs.length - 1;
+  // Shifts are shared globally across every tab in every period, so a brand
+  // new tab should start with the same shift set already in use elsewhere in
+  // the app, rather than the generic blank template — only day labels and
+  // assignments stay independent per tab.
+  const existing = allTabsEverywhere().find(t => t !== tab);
+  if (existing) mirrorShiftDefsOntoTab(existing, tab);
+  logActivity('tab-act', `Tab added: "${label}"`, currentPeriod().name);
+  saveData(); render();
+}
+document.getElementById('addTabBtn').addEventListener('click', addTab);
+
+// ── ASSIGNMENT LOOKUPS ────────────────────────────────────────────────────────
+function findAssignmentsInTab(tab, empName, dayIdx) {
+  const out = [];
+  tab.data.forEach((shift, si) => {
+    shift.slots.forEach((row, sli) => { if (row[dayIdx] === empName) out.push({ si, sli }); });
+  });
+  return out;
+}
+function occupantOf(shiftIdx, slotIdx, dayIdx) {
+  return currentTab().data[shiftIdx].slots[slotIdx][dayIdx] || '';
+}
+function isEmployeeBookedElsewhereThisDay(empName, dayIdx) {
+  // across all tabs in the current period (same week)
+  return currentTabs().some(t => findAssignmentsInTab(t, empName, dayIdx).length > 0);
+}
+
+// ── DAY STATUS (diary-style: Off / Sick / Hol / custom) ──────────────────────
+function statusKey(empName, dayIdx) { return empName + '||' + dayIdx; }
+function getStatus(tab, empName, dayIdx) {
+  ensureStatusAssignments(tab);
+  return tab.statusAssignments[statusKey(empName, dayIdx)] || null;
+}
+function getStatusType(id) { return statusTypes.find(s => s.id === id) || null; }
+function setStatus(empName, dayIdx, statusId) {
+  const tab = currentTab();
+  ensureStatusAssignments(tab);
+  // mutually exclusive with shift assignments that day
+  findAssignmentsInTab(tab, empName, dayIdx).forEach(m => { tab.data[m.si].slots[m.sli][dayIdx] = ''; });
+  tab.statusAssignments[statusKey(empName, dayIdx)] = statusId;
+  const st = getStatusType(statusId);
+  logActivity('status', `${empName} marked "${st ? st.label : statusId}"`, `${currentPeriod().name} · ${tab.name} · ${currentDayLabels()[dayIdx]}`);
+  saveData(); render();
+}
+function clearStatus(empName, dayIdx) {
+  const tab = currentTab();
+  ensureStatusAssignments(tab);
+  const id = tab.statusAssignments[statusKey(empName, dayIdx)];
+  const st = getStatusType(id);
+  delete tab.statusAssignments[statusKey(empName, dayIdx)];
+  logActivity('status', `${empName} "${st ? st.label : id}" removed`, `${currentPeriod().name} · ${tab.name} · ${currentDayLabels()[dayIdx]}`);
+  saveData(); render();
+}
+
+// ── ASSIGN / REMOVE ───────────────────────────────────────────────────────────
+function ctxFor(shiftIdx, slotIdx, dayIdx) {
+  const shift = currentTab().data[shiftIdx];
+  return `${currentPeriod().name} · ${currentTab().name} · ${shift.title} · ${shift.slotNames[slotIdx]} · ${currentDayLabels()[dayIdx]}`;
+}
+function assignShift(empName, dayIdx, shiftIdx, slotIdx, replaceMatch) {
+  const shift = currentTab().data[shiftIdx];
+  // mutually exclusive with a day status
+  if (getStatus(currentTab(), empName, dayIdx)) delete currentTab().statusAssignments[statusKey(empName, dayIdx)];
+  if (replaceMatch) {
+    const oldShift = currentTab().data[replaceMatch.si];
+    const fromLabel = `${oldShift.title} · ${oldShift.slotNames[replaceMatch.sli]}`;
+    oldShift.slots[replaceMatch.sli][dayIdx] = '';
+    logActivity('move', `${empName} moved from ${fromLabel} → ${shift.title} · ${shift.slotNames[slotIdx]}`, `${currentPeriod().name} · ${currentTab().name} · ${currentDayLabels()[dayIdx]}`);
+  } else {
+    logActivity('assign', `${empName} assigned`, ctxFor(shiftIdx, slotIdx, dayIdx));
+  }
+  shift.slots[slotIdx][dayIdx] = empName;
+  saveData(); render();
+}
+function removeAssignment(empName, dayIdx, shiftIdx, slotIdx) {
+  currentTab().data[shiftIdx].slots[slotIdx][dayIdx] = '';
+  logActivity('clear', `${empName} removed`, ctxFor(shiftIdx, slotIdx, dayIdx));
+  saveData(); render();
+}
+
+// ── SHARED PICKER (typeahead shift/slot selector) ─────────────────────────────
+const pickerPanel  = document.getElementById('pickerPanel');
+const pickerSearch = document.getElementById('pickerSearch');
+const pickerList   = document.getElementById('pickerList');
+let pickerCtx = null; // { empName, dayIdx, replaceMatch }
+
+function openPicker(empName, dayIdx, anchorEl, replaceMatch) {
+  pickerCtx = { empName, dayIdx, replaceMatch };
+  pickerSearch.value = '';
+  renderPickerList('');
+  const rect = anchorEl.getBoundingClientRect();
+  const pw = 300, ph = pickerPanel.offsetHeight || 380;
+  let left = rect.left, top = rect.bottom + 6;
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, rect.top - ph - 6);
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (left < 8) left = 8;
+  pickerPanel.style.left = left+'px'; pickerPanel.style.top = top+'px';
+  pickerPanel.classList.add('open');
+  setTimeout(() => pickerSearch.focus(), 30);
+}
+function closePicker() { pickerPanel.classList.remove('open'); pickerCtx = null; }
+
+function renderPickerList(filterText) {
+  if (!pickerCtx) return;
+  const { empName, dayIdx, replaceMatch } = pickerCtx;
+  const q = filterText.trim().toLowerCase();
+  const tab = currentTab();
+  let html = '';
+  const currentStatus = getStatus(tab, empName, dayIdx);
+  const hasCurrent = replaceMatch || findAssignmentsInTab(tab, empName, dayIdx).length > 0 || currentStatus;
+  if (hasCurrent && !q) {
+    html += `<div class="picker-clear" data-clear="1">✕ Clear this day</div>`;
+  }
+
+  // Status / diary section (Off, Sick, Hol, etc.)
+  const matchingStatuses = statusTypes.filter(s => !q || s.label.toLowerCase().includes(q));
+  if (matchingStatuses.length) {
+    html += `<div class="picker-group"><div class="picker-group-title"><span>Status</span></div>`;
+    matchingStatuses.forEach(s => {
+      const isCurrent = currentStatus === s.id;
+      html += `<div class="picker-row status-row ${isCurrent?'current':''}" data-status="${s.id}">
+        <span><span class="status-swatch" style="background:${esc(s.color)}"></span>${esc(s.label)}</span>
+        ${isCurrent ? `<span class="picker-occ">current</span>` : ''}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  let anyMatch = false;
+  tab.data.forEach((shift, si) => {
+    const titleMatch = shift.title.toLowerCase().includes(q);
+    const slotMatches = shift.slotNames.map(sn => sn.toLowerCase().includes(q));
+    if (q && !titleMatch && !slotMatches.some(Boolean)) return;
+    let rows = '';
+    let freeCount = 0, totalCount = shift.slots.length;
+    shift.slots.forEach((row, sli) => {
+      if (q && !titleMatch && !slotMatches[sli]) return;
+      const occ = row[dayIdx];
+      const isThisOne = replaceMatch && replaceMatch.si === si && replaceMatch.sli === sli;
+      const takenByOther = occ && occ !== empName && !isThisOne;
+      if (!takenByOther) freeCount++;
+      const swatch = shift.color ? `<span class="status-swatch" style="background:${esc(shift.color)}"></span>` : '';
+      rows += `<div class="picker-row ${takenByOther?'taken':''} ${isThisOne?'current':''}" data-si="${si}" data-sli="${sli}">
+        <span>${swatch}${esc(shift.slotNames[sli])}</span>
+        ${takenByOther ? `<span class="picker-occ">⇄ ${esc(occ)}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
+      </div>`;
+    });
+    if (!rows) return;
+    anyMatch = true;
+    const full = freeCount === 0;
+    html += `<div class="picker-group ${full?'full':''}">
+      <div class="picker-group-title"><span>${esc(shift.title)}</span>${full?'<span>FULL</span>':''}</div>
+      ${rows}
+    </div>`;
+  });
+  if (!anyMatch && !matchingStatuses.length) html += `<div class="picker-empty">No matching shifts found.</div>`;
+  pickerList.innerHTML = html;
+
+  pickerList.querySelectorAll('.picker-clear').forEach(el => {
+    el.addEventListener('click', () => {
+      const matches = replaceMatch ? [replaceMatch] : findAssignmentsInTab(tab, empName, dayIdx);
+      matches.forEach(m => { currentTab().data[m.si].slots[m.sli][dayIdx] = ''; });
+      if (currentStatus) delete tab.statusAssignments[statusKey(empName, dayIdx)];
+      logActivity('clear', `${empName} cleared for this day`, `${currentPeriod().name} · ${tab.name} · ${currentDayLabels()[dayIdx]}`);
+      saveData(); render();
+      closePicker();
+    });
+  });
+  pickerList.querySelectorAll('.status-row').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.classList.contains('current')) { closePicker(); return; }
+      setStatus(empName, dayIdx, el.dataset.status);
+      closePicker();
+    });
+  });
+  pickerList.querySelectorAll('.picker-row:not(.status-row)').forEach(el => {
+    el.addEventListener('click', () => {
+      const si = +el.dataset.si, sli = +el.dataset.sli;
+      if (el.classList.contains('current')) { closePicker(); return; }
+      if (el.classList.contains('taken')) {
+        const shift = tab.data[si];
+        const occupant = shift.slots[sli][dayIdx];
+        logActivity('clear', `${occupant} removed (replaced by ${empName})`, ctxFor(si, sli, dayIdx));
+        shift.slots[sli][dayIdx] = '';
+      }
+      assignShift(empName, dayIdx, si, sli, replaceMatch);
+      closePicker();
+    });
+  });
+}
+pickerSearch.addEventListener('input', () => renderPickerList(pickerSearch.value));
+pickerSearch.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
+document.addEventListener('mousedown', e => {
+  if (!pickerPanel.classList.contains('open')) return;
+  if (pickerPanel.contains(e.target) || e.target.closest('.chip') || e.target.closest('.add-cell-btn')) return;
+  closePicker();
+});
+
+// ── SHARED TOOLTIP (shift occupancy across the week) ─────────────────────────
+const shiftTooltip = document.getElementById('shiftTooltip');
+const tipName  = document.getElementById('tipName');
+const tipBadge = document.getElementById('tipBadge');
+const tipBody  = document.getElementById('tipBody');
+let tipTimer = null;
+
+function showShiftTooltip(shiftIdx, currentDayIdx, anchorEl) {
+  const shift = currentTab().data[shiftIdx];
+  const dayLabels = currentDayLabels();
+  let filled = 0, total = 0;
+  let html = '';
+  DAYS.forEach((_, di) => {
+    const day = dayLabels[di];
+    const rowLabels = shift.slots.map((row, sli) => {
+      total++;
+      const occ = row[di];
+      if (occ) filled++;
+      return occ
+        ? `<div class="tip-slot">${esc(shift.slotNames[sli])}: <strong>${esc(occ)}</strong></div>`
+        : `<div class="tip-slot empty">${esc(shift.slotNames[sli])}: — empty —</div>`;
+    }).join('');
+    html += `<div class="tip-day-row"><span class="tip-day-label${di===currentDayIdx?' is-today':''}">${day}${di===currentDayIdx?' (this day)':''}</span>${rowLabels}</div>`;
+  });
+  tipName.textContent = shift.title;
+  tipBadge.textContent = `${filled}/${total} filled`;
+  tipBody.innerHTML = html;
+
+  const rect = anchorEl.getBoundingClientRect();
+  const ttW = 270, ttH = shiftTooltip.offsetHeight || 300;
+  let left = rect.left, top = rect.top - ttH - 10, arrowBelow = false;
+  if (top < 8) { top = rect.bottom + 10; arrowBelow = true; }
+  if (left + ttW > window.innerWidth - 8) left = window.innerWidth - ttW - 8;
+  if (left < 8) left = 8;
+  shiftTooltip.style.left = left+'px'; shiftTooltip.style.top = top+'px';
+  const arrow = shiftTooltip.querySelector('.tip-arrow');
+  if (arrowBelow) { arrow.style.order = '-1'; arrow.style.transform = 'rotate(180deg)'; shiftTooltip.style.flexDirection = 'column'; }
+  else { shiftTooltip.style.flexDirection = 'column-reverse'; arrow.style.transform = 'none'; }
+  shiftTooltip.classList.add('visible');
+}
+function hideShiftTooltip() { clearTimeout(tipTimer); shiftTooltip.classList.remove('visible'); }
+
+// ── ROSTER VIEW (names x days) ────────────────────────────────────────────────
+function renderRoster() {
+  const tab = currentTab();
+  const container = document.getElementById('rosterView');
+  const emps = sortedEmployees();
+
+  if (!emps.length) { container.innerHTML = '<span style="color:#6c757d;padding:20px;display:block">No employees added yet.</span>'; return; }
+  if (!tab.data.length) { container.innerHTML = '<span style="color:#6c757d;padding:20px;display:block">No shifts yet — click 🛠 Shifts to create one.</span>'; return; }
+
+  const dayLabels = currentDayLabels();
+  const period = currentPeriod();
+  const isWeek2 = activeTab % 2 === 1;
+  let html = `<table class="roster"><thead><tr><th class="name-corner">Employee</th>`;
+  DAYS.forEach((d, di) => {
+    const colorClass = di===1 ? 'day-sat' : (di===2 ? 'day-sun' : '');
+    html += `<th class="day-th ${colorClass}"><span class="day-label-input" contenteditable="true" data-di="${di}">${esc(dayLabels[di])}</span></th>`;
+  });
+  html += `<th class="day-th hours-th" title="${isWeek2 ? 'Combined hours for this fortnight' : 'Total hours this week'}">Hrs${isWeek2 ? ' (2wk)' : ''}</th>`;
+  html += `</tr></thead><tbody>`;
+
+  emps.forEach(emp => {
+    html += `<tr><td class="emp-name-cell">${empNameCellHtml(emp)}</td>`;
+    DAYS.forEach((day, di) => {
+      const statusId = getStatus(tab, emp, di);
+      let cellInner;
+      if (statusId) {
+        const st = getStatusType(statusId);
+        const color = st ? st.color : '#6c757d';
+        const label = st ? st.label : statusId;
+        cellInner = `<div class="chip status-chip" style="background:${esc(color)};color:#fff;border-color:${esc(color)}" data-emp="${esc(emp)}" data-di="${di}" data-status="${esc(statusId)}">
+          <span class="chip-label">${esc(label)}</span>
+          <span class="chip-x" data-act="remove-status">✕</span>
+        </div>`;
+      } else {
+        const matches = findAssignmentsInTab(tab, emp, di);
+        const availViolation = hasAvailabilityViolation(tab, emp, di, matches);
+        let chipsHtml = matches.map(m => {
+          const shift = tab.data[m.si];
+          const isExceptionExtra = matches.length > 1;
+          const style = shift.color ? ` style="background:${esc(shift.color)};color:#fff;border-color:${esc(shift.color)}"` : '';
+          return `<div class="chip${isExceptionExtra?' exception-chip':''}"${style} data-si="${m.si}" data-sli="${m.sli}" data-emp="${esc(emp)}" data-di="${di}">
+            <span class="chip-label">${esc(shift.title)} · ${esc(shift.slotNames[m.sli])}${availViolation ? ` <span class="avail-badge" title="${esc(describeAvailabilityViolation(tab, emp, di, matches))}">⚠️</span>` : ''}</span>
+            <span class="chip-x" data-act="remove">✕</span>
+          </div>`;
+        }).join('');
+        const addBtn = matches.length === 0
+          ? `<div class="add-cell-btn" data-emp="${esc(emp)}" data-di="${di}">+ Add</div>`
+          : (allowExceptions ? `<div class="add-cell-btn small" data-emp="${esc(emp)}" data-di="${di}">+</div>` : '');
+        cellInner = `${chipsHtml}${addBtn}`;
+      }
+      html += `<td class="day-slot-cell${hasRestViolation(tab, emp, di) ? ' rest-violation' : ''}" title="${hasRestViolation(tab, emp, di) ? 'Less than 11 hours rest before the next shift' : ''}"><div class="cell-wrap">${cellInner}</div></td>`;
+    });
+    const weekHrs = computeWeeklyHours(tab, emp);
+    const cumHrs = isWeek2 ? computeCumulativeHours(period, activeTab, emp) : weekHrs;
+    const hrsText = isWeek2 ? `${fmtHours(weekHrs)} <span class="hrs-cum">(${fmtHours(cumHrs)})</span>` : fmtHours(weekHrs);
+    html += `<td class="hours-cell">${hrsText}</td>`;
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+
+  // Chip click => replace picker ; chip-x => remove ; hover chip => tooltip
+  container.querySelectorAll('.chip:not(.status-chip)').forEach(chip => {
+    const si = +chip.dataset.si, sli = +chip.dataset.sli, di = +chip.dataset.di, emp = chip.dataset.emp;
+    chip.addEventListener('click', e => {
+      if (e.target.dataset.act === 'remove') { removeAssignment(emp, di, si, sli); return; }
+      openPicker(emp, di, chip, { si, sli });
+    });
+    chip.addEventListener('mouseenter', () => { clearTimeout(tipTimer); tipTimer = setTimeout(() => showShiftTooltip(si, di, chip), 120); });
+    chip.addEventListener('mouseleave', () => { clearTimeout(tipTimer); tipTimer = setTimeout(hideShiftTooltip, 80); });
+  });
+  container.querySelectorAll('.chip.status-chip').forEach(chip => {
+    const di = +chip.dataset.di, emp = chip.dataset.emp;
+    chip.addEventListener('click', e => {
+      if (e.target.dataset.act === 'remove-status') { clearStatus(emp, di); return; }
+      openPicker(emp, di, chip, null);
+    });
+  });
+  container.querySelectorAll('.add-cell-btn').forEach(btn => {
+    btn.addEventListener('click', () => openPicker(btn.dataset.emp, +btn.dataset.di, btn, null));
+  });
+
+  // Editable day headers (name + date, other notes, etc.)
+  container.querySelectorAll('.day-label-input').forEach(span => {
+    span.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); span.blur(); }
+    });
+    span.addEventListener('blur', () => {
+      const di = +span.dataset.di;
+      const labels = currentDayLabels();
+      const oldLabel = labels[di];
+      const newLabel = span.textContent.trim() || DAYS[di];
+      if (newLabel !== oldLabel) {
+        labels[di] = newLabel;
+        logActivity('rename', `Day header updated: "${oldLabel}" → "${newLabel}"`, `${currentPeriod().name}`);
+        saveData();
+      }
+      span.textContent = newLabel;
+    });
+  });
+}
+
+// ── SHIFTS OVERVIEW (cards, printable) ────────────────────────────────────────
+function renderShiftsView() {
+  const tab = currentTab();
+  const view = document.getElementById('shiftsView');
+  const dayLabels = currentDayLabels();
+
+  const shiftCardsHtml = tab.data.map(shift => {
+    let filled = 0, total = 0;
+    const days = DAYS.map((_, di) => {
+      const day = dayLabels[di];
+      const slotsHtml = shift.slots.map((row, sli) => {
+        total++;
+        const occ = row[di];
+        if (occ) filled++;
+        return occ
+          ? `<div class="shift-card-slot">${esc(shift.slotNames[sli])}: <strong>${esc(occ)}</strong></div>`
+          : `<div class="shift-card-slot empty">${esc(shift.slotNames[sli])}: — empty —</div>`;
+      }).join('');
+      return `<div class="shift-card-day">${day}</div>${slotsHtml}`;
+    }).join('');
+    const borderStyle = shift.color ? ` style="border-left:4px solid ${esc(shift.color)}"` : '';
+    return `<div class="shift-card"${borderStyle}><div class="shift-card-title">${esc(shift.title)} <span class="shift-card-count">${filled}/${total}</span></div>${days}</div>`;
+  }).join('');
+
+  // Status label cards (Holidays, Sick, Off, or any custom label) — same card
+  // style as shifts, listing which names are marked with that label each day.
+  ensureStatusAssignments(tab);
+  const emps = currentEmployees();
+  const statusCardsHtml = statusTypes.map(st => {
+    let daysUsed = 0;
+    const days = DAYS.map((_, di) => {
+      const day = dayLabels[di];
+      const names = emps.filter(emp => getStatus(tab, emp, di) === st.id).sort();
+      if (names.length) daysUsed++;
+      const namesHtml = names.length
+        ? names.map(n => `<div class="shift-card-slot"><strong>${esc(n)}</strong></div>`).join('')
+        : `<div class="shift-card-slot empty">— none —</div>`;
+      return `<div class="shift-card-day">${day}</div>${namesHtml}`;
+    }).join('');
+    return { st, days, daysUsed };
+  }).filter(c => c.daysUsed > 0).map(c => {
+    const borderStyle = ` style="border-left:4px solid ${esc(c.st.color)}"`;
+    return `<div class="shift-card"${borderStyle}><div class="shift-card-title">${esc(c.st.label)} <span class="shift-card-count">${c.daysUsed}/${DAYS.length}</span></div>${c.days}</div>`;
+  }).join('');
+
+  const html = shiftCardsHtml + statusCardsHtml;
+  view.innerHTML = html || '<span style="color:#6c757d;padding:20px;display:block">No shifts yet — click 🛠 Shifts to create one.</span>';
+}
+
+// ── EMPLOYEE CARDS VIEW (per-person schedule, copy & paste to send) ──────────
+function renderEmployeesView() {
+  const tab = currentTab();
+  const view = document.getElementById('employeesView');
+  const emps = sortedEmployees();
+  if (!emps.length) { view.innerHTML = '<span style="color:#6c757d;padding:20px;display:block">No employees added yet.</span>'; return; }
+
+  const dayLabels = currentDayLabels();
+  const period = currentPeriod();
+  const isWeek2 = activeTab % 2 === 1;
+  view.innerHTML = emps.map(emp => {
+    const rowsHtml = DAYS.map((_, di) => {
+      const day = dayLabels[di];
+      const statusId = getStatus(tab, emp, di);
+      let valText, isOff = false;
+      if (statusId) {
+        const st = getStatusType(statusId);
+        valText = st ? st.label : statusId;
+        isOff = true;
+      } else {
+        const matches = findAssignmentsInTab(tab, emp, di);
+        if (matches.length) {
+          valText = matches.map(m => `${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]}`).join(' + ');
+        } else {
+          valText = '—';
+          isOff = true;
+        }
+      }
+      const violation = hasRestViolation(tab, emp, di);
+      return `<div class="emp-card-day${isOff?' off-day':''}${violation?' rest-violation':''}" title="${violation?'Less than 11 hours rest before the next shift':''}"><span class="day-name">${esc(day)}</span><span class="day-val" title="${esc(valText)}">${esc(valText)}</span></div>`;
+    }).join('');
+    const weekHrs = computeWeeklyHours(tab, emp);
+    const cumHrs = isWeek2 ? computeCumulativeHours(period, activeTab, emp) : weekHrs;
+    const hrsLine = isWeek2
+      ? `${fmtHours(weekHrs)} this week · <strong>${fmtHours(cumHrs)} fortnight</strong>`
+      : `<strong>${fmtHours(weekHrs)}</strong> this week`;
+    return `<div class="emp-card" data-emp="${esc(emp)}">
+      <div class="emp-card-title"><span>${empNameCellHtml(emp)}</span><button class="emp-card-copy" data-emp="${esc(emp)}">📋 Copy</button></div>
+      ${rowsHtml}
+      <div class="emp-card-hours">${hrsLine}</div>
+    </div>`;
+  }).join('');
+
+  view.querySelectorAll('.emp-card-copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const emp = btn.dataset.emp;
+      const lines = [emp + ' — ' + currentPeriod().name + ' (' + tab.name + ')'];
+      DAYS.forEach((_, di) => {
+        const day = dayLabels[di];
+        const statusId = getStatus(tab, emp, di);
+        let valText;
+        if (statusId) {
+          const st = getStatusType(statusId);
+          valText = st ? st.label : statusId;
+        } else {
+          const matches = findAssignmentsInTab(tab, emp, di);
+          valText = matches.length
+            ? matches.map(m => `${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]}`).join(' + ')
+            : 'Off';
+        }
+        lines.push(`${day}: ${valText}`);
+      });
+      const weekHrs = computeWeeklyHours(tab, emp);
+      if (activeTab % 2 === 1) {
+        const cumHrs = computeCumulativeHours(currentPeriod(), activeTab, emp);
+        lines.push(`Hours: ${fmtHours(weekHrs)} this week (${fmtHours(cumHrs)} fortnight)`);
+      } else {
+        lines.push(`Hours: ${fmtHours(weekHrs)} this week`);
+      }
+      navigator.clipboard.writeText(lines.join('\n')).then(() => {
+        btn.textContent = '✓ Copied'; btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 1500);
+      });
+    });
+  });
+}
+
+// ── SHIFT MANAGER MODAL ────────────────────────────────────────────────────────
+function renderShiftMgr() {
+  const tab = currentTab();
+  const list = document.getElementById('shiftMgrList');
+  if (!tab.data.length) { list.innerHTML = '<span style="color:#6c757d;font-size:12px;">No shifts yet. Add one below.</span>'; return; }
+  list.innerHTML = tab.data.map((shift, si) => `
+    <div class="mgr-shift" data-si="${si}">
+      <div class="mgr-shift-head">
+        <input type="color" class="mgr-shift-color" value="${esc(shift.color || '#0d6efd')}" data-si="${si}" title="Shift colour" />
+        <input class="modal-input mgr-shift-title" value="${esc(shift.title)}" data-si="${si}" />
+        <button class="mgr-del-shift" data-si="${si}" title="Delete shift">✕</button>
+      </div>
+      <div class="mgr-shift-times">
+        <span>Start</span>
+        <input type="time" class="mgr-shift-start" value="${esc(shift.startTime||'')}" data-si="${si}" />
+        <span>Finish</span>
+        <input type="time" class="mgr-shift-finish" value="${esc(shift.finishTime||'')}" data-si="${si}" />
+        <span class="mgr-shift-hours" data-si="${si}">${shift.startTime && shift.finishTime ? '('+fmtHours(shiftDurationHours(shift))+')' : ''}</span>
+      </div>
+      ${shift.slotNames.map((sn, sli) => `
+        <div class="mgr-slot-row" data-si="${si}" data-sli="${sli}">
+          <input class="modal-input mgr-slot-name" value="${esc(sn)}" data-si="${si}" data-sli="${sli}" />
+          <button class="mgr-del-slot" data-si="${si}" data-sli="${sli}" title="Delete slot">✕</button>
+        </div>`).join('')}
+      <button class="btn btn-dark mgr-add-slot" data-si="${si}">+ Add Slot</button>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.mgr-shift-color').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const si = +e.target.dataset.si;
+      tab.data[si].color = e.target.value;
+      saveData(); render();
+    });
+  });
+
+  list.querySelectorAll('.mgr-shift-title').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const si = +e.target.dataset.si;
+      const oldTitle = tab.data[si].title;
+      const newTitle = e.target.value.trim() || oldTitle;
+      tab.data[si].title = newTitle;
+      if (oldTitle !== newTitle) logActivity('rename', `Shift renamed: "${oldTitle}" → "${newTitle}"`, `${currentPeriod().name} · ${tab.name}`);
+      saveData(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-shift-start').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const si = +e.target.dataset.si;
+      tab.data[si].startTime = e.target.value;
+      logActivity('shift-act', `Shift "${tab.data[si].title}" start time set to ${e.target.value || '(none)'}`, `${currentPeriod().name} · ${tab.name}`);
+      saveData(); renderShiftMgr(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-shift-finish').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const si = +e.target.dataset.si;
+      tab.data[si].finishTime = e.target.value;
+      logActivity('shift-act', `Shift "${tab.data[si].title}" finish time set to ${e.target.value || '(none)'}`, `${currentPeriod().name} · ${tab.name}`);
+      saveData(); renderShiftMgr(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-slot-name').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const si = +e.target.dataset.si, sli = +e.target.dataset.sli;
+      const oldName = tab.data[si].slotNames[sli];
+      const newName = e.target.value.trim() || oldName;
+      tab.data[si].slotNames[sli] = newName;
+      if (oldName !== newName) logActivity('rename', `Slot renamed: "${oldName}" → "${newName}"`, `${currentPeriod().name} · ${tab.name} · ${tab.data[si].title}`);
+      saveData(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-del-shift').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const si = +btn.dataset.si;
+      const shift = tab.data[si];
+      const hasData = shift.slots.some(row => row.some(v => v));
+      if (!confirm(`Delete shift "${shift.title}"?${hasData ? ' This will remove existing assignments.' : ''}`)) return;
+      logActivity('shift-act', `Shift deleted: "${shift.title}"`, `${currentPeriod().name} · ${tab.name}`);
+      tab.data.splice(si, 1);
+      saveData(); renderShiftMgr(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-del-slot').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const si = +btn.dataset.si, sli = +btn.dataset.sli;
+      const shift = tab.data[si];
+      if (shift.slots.length <= 1) { alert('A shift needs at least one slot. Delete the shift instead.'); return; }
+      const hasData = shift.slots[sli].some(v => v);
+      if (!confirm(`Delete slot "${shift.slotNames[sli]}" from "${shift.title}"?${hasData ? ' This will remove existing assignments.' : ''}`)) return;
+      logActivity('shift-act', `Slot deleted: "${shift.slotNames[sli]}" from "${shift.title}"`, `${currentPeriod().name} · ${tab.name}`);
+      shift.slots.splice(sli, 1);
+      shift.slotNames.splice(sli, 1);
+      saveData(); renderShiftMgr(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-add-slot').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const si = +btn.dataset.si;
+      const shift = tab.data[si];
+      const n = shift.slots.length + 1;
+      shift.slots.push(new Array(DAYS.length).fill(''));
+      shift.slotNames.push('Slot '+n);
+      logActivity('shift-act', `Slot added to "${shift.title}"`, `${currentPeriod().name} · ${tab.name}`);
+      saveData(); renderShiftMgr(); render();
+    });
+  });
+}
+document.getElementById('openShiftMgr').addEventListener('click', () => { renderShiftMgr(); document.getElementById('shiftMgrModal').classList.add('open'); });
+document.getElementById('shiftMgrCloseBtn').addEventListener('click', () => document.getElementById('shiftMgrModal').classList.remove('open'));
+document.getElementById('shiftMgrModal').addEventListener('click', e => { if (e.target===document.getElementById('shiftMgrModal')) document.getElementById('shiftMgrModal').classList.remove('open'); });
+document.getElementById('mgrAddShiftBtn').addEventListener('click', () => {
+  const tab = currentTab();
+  const n = tab.data.length + 1;
+  tab.data.push({ title: 'Shift '+n, color: '', slotNames: DEFAULT_SLOT_NAMES.slice(), slots: [new Array(DAYS.length).fill(''), new Array(DAYS.length).fill('')], startTime: '', finishTime: '' });
+  logActivity('shift-act', `Shift created: "Shift ${n}"`, `${currentPeriod().name} · ${tab.name}`);
+  saveData(); renderShiftMgr(); render();
+});
+
+// ── STATUS (DIARY LABEL) MANAGER ──────────────────────────────────────────────
+function renderStatusMgr() {
+  const list = document.getElementById('statusMgrList');
+  statusTypes.forEach(ensureStatusHoursMode);
+  list.innerHTML = statusTypes.length
+    ? statusTypes.map((s, i) => `
+      <div class="mgr-status-row" data-i="${i}">
+        <input type="color" class="mgr-status-color" value="${esc(s.color)}" data-i="${i}" title="Label colour" />
+        <input class="modal-input mgr-status-label" value="${esc(s.label)}" data-i="${i}" />
+        <label class="mgr-status-paid" title="Counts as 8 paid hours toward the weekly total">
+          <input type="checkbox" class="mgr-status-paid-cb" data-i="${i}" ${s.hoursMode==='paid8'?'checked':''}> Paid 8h
+        </label>
+        <button class="mgr-del-status" data-i="${i}" title="Delete label">✕</button>
+      </div>`).join('')
+    : `<span style="color:#6c757d;font-size:12px;">No status labels yet. Add one below.</span>`;
+
+  list.querySelectorAll('.mgr-status-color').forEach(inp => {
+    inp.addEventListener('input', e => {
+      statusTypes[+e.target.dataset.i].color = e.target.value;
+      saveData(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-status-paid-cb').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const i = +e.target.dataset.i;
+      const s = statusTypes[i];
+      s.hoursMode = e.target.checked ? 'paid8' : 'none';
+      logActivity('shift-act', `Status "${s.label}" ${e.target.checked ? 'now counts as 8 paid hours' : 'no longer counts hours'}`, '');
+      saveData(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-status-label').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const i = +e.target.dataset.i;
+      const oldLabel = statusTypes[i].label;
+      const newLabel = e.target.value.trim() || oldLabel;
+      statusTypes[i].label = newLabel;
+      if (oldLabel !== newLabel) logActivity('shift-act', `Status label renamed: "${oldLabel}" → "${newLabel}"`, '');
+      saveData(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-del-status').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      const s = statusTypes[i];
+      if (!confirm(`Delete status label "${s.label}"? Any days marked with it will be cleared.`)) return;
+      periods.forEach(p => p.tabs.forEach(t => {
+        ensureStatusAssignments(t);
+        Object.keys(t.statusAssignments).forEach(k => { if (t.statusAssignments[k] === s.id) delete t.statusAssignments[k]; });
+      }));
+      logActivity('shift-act', `Status label deleted: "${s.label}"`, '');
+      statusTypes.splice(i, 1);
+      saveData(); renderStatusMgr(); render();
+    });
+  });
+}
+document.getElementById('openStatusMgr').addEventListener('click', () => { renderStatusMgr(); document.getElementById('statusMgrModal').classList.add('open'); });
+document.getElementById('statusMgrCloseBtn').addEventListener('click', () => document.getElementById('statusMgrModal').classList.remove('open'));
+document.getElementById('statusMgrModal').addEventListener('click', e => { if (e.target===document.getElementById('statusMgrModal')) document.getElementById('statusMgrModal').classList.remove('open'); });
+document.getElementById('mgrAddStatusBtn').addEventListener('click', () => {
+  const id = 'st'+Date.now();
+  statusTypes.push({ id, label: 'New Label', color: '#0d6efd' });
+  logActivity('shift-act', `Status label created: "New Label"`, '');
+  saveData(); renderStatusMgr(); render();
+});
+
+// ── CATEGORY MANAGER (colour legend) ─────────────────────────────────────────
+function renderCatMgr() {
+  const list = document.getElementById('catMgrList');
+  list.innerHTML = categories.length
+    ? categories.map((c, i) => `
+      <div class="mgr-status-row" data-i="${i}">
+        <input type="color" class="mgr-cat-color" value="${esc(c.color)}" data-i="${i}" title="Category colour" />
+        <input class="modal-input mgr-cat-label" value="${esc(c.label)}" data-i="${i}" />
+        <button class="mgr-del-cat" data-i="${i}" title="Delete category">✕</button>
+      </div>`).join('')
+    : `<span style="color:#6c757d;font-size:12px;">No categories yet. Add one below.</span>`;
+  list.querySelectorAll('.mgr-cat-color').forEach(inp => {
+    inp.addEventListener('input', e => { categories[+e.target.dataset.i].color = e.target.value; saveData(); render(); renderEmpModal(); });
+  });
+  list.querySelectorAll('.mgr-cat-label').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const i = +e.target.dataset.i;
+      const oldLabel = categories[i].label;
+      const newLabel = e.target.value.trim() || oldLabel;
+      categories[i].label = newLabel;
+      if (oldLabel !== newLabel) logActivity('shift-act', `Category renamed: "${oldLabel}" → "${newLabel}"`, '');
+      saveData(); render(); renderEmpModal();
+    });
+  });
+  list.querySelectorAll('.mgr-del-cat').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      const c = categories[i];
+      if (!confirm(`Delete category "${c.label}"? Employees using it will show no colour.`)) return;
+      Object.values(employeeMeta).forEach(m => { if (m.category === c.id) m.category = ''; });
+      periods.forEach(p => p.tabs.forEach(t => { ensureTabOverrides(t); Object.values(t.metaOverride).forEach(ov => { if (ov.category === c.id) ov.category = ''; }); }));
+      logActivity('shift-act', `Category deleted: "${c.label}"`, '');
+      categories.splice(i, 1);
+      saveData(); renderCatMgr(); render(); renderEmpModal();
+    });
+  });
+}
+document.getElementById('openCatMgr').addEventListener('click', () => { renderCatMgr(); document.getElementById('catMgrModal').classList.add('open'); });
+document.getElementById('catMgrCloseBtn').addEventListener('click', () => document.getElementById('catMgrModal').classList.remove('open'));
+document.getElementById('catMgrModal').addEventListener('click', e => { if (e.target===document.getElementById('catMgrModal')) document.getElementById('catMgrModal').classList.remove('open'); });
+document.getElementById('mgrAddCatBtn').addEventListener('click', () => {
+  const id = 'cat'+Date.now();
+  categories.push({ id, label: 'New Category', color: '#0d6efd' });
+  logActivity('shift-act', `Category created: "New Category"`, '');
+  saveData(); renderCatMgr(); render();
+});
+
+// ── GROUP MANAGER (visual clustering in the employee list) ───────────────────
+function renderGroupMgr() {
+  const list = document.getElementById('groupMgrList');
+  list.innerHTML = groups.length
+    ? groups.map((g, i) => `
+      <div class="mgr-group-row" data-i="${i}">
+        <input class="modal-input mgr-group-label" value="${esc(g)}" data-i="${i}" />
+        <button class="mgr-group-up" data-i="${i}" title="Move up"${i===0?' disabled':''}>↑</button>
+        <button class="mgr-group-down" data-i="${i}" title="Move down"${i===groups.length-1?' disabled':''}>↓</button>
+        <button class="mgr-del-group" data-i="${i}" title="Delete group">✕</button>
+      </div>`).join('')
+    : `<span style="color:#6c757d;font-size:12px;">No groups yet. Add one below.</span>`;
+  list.querySelectorAll('.mgr-group-label').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const i = +e.target.dataset.i;
+      const oldName = groups[i];
+      const newName = e.target.value.trim() || oldName;
+      if (newName === oldName) return;
+      groups[i] = newName;
+      Object.values(employeeMeta).forEach(m => { if (m.group === oldName) m.group = newName; });
+      periods.forEach(p => p.tabs.forEach(t => { ensureTabOverrides(t); Object.values(t.metaOverride).forEach(ov => { if (ov.group === oldName) ov.group = newName; }); }));
+      logActivity('shift-act', `Group renamed: "${oldName}" → "${newName}"`, '');
+      saveData(); render(); renderEmpModal();
+    });
+  });
+  list.querySelectorAll('.mgr-group-up').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      if (i > 0) { [groups[i-1], groups[i]] = [groups[i], groups[i-1]]; saveData(); renderGroupMgr(); render(); }
+    });
+  });
+  list.querySelectorAll('.mgr-group-down').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      if (i < groups.length-1) { [groups[i+1], groups[i]] = [groups[i], groups[i+1]]; saveData(); renderGroupMgr(); render(); }
+    });
+  });
+  list.querySelectorAll('.mgr-del-group').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      const g = groups[i];
+      if (!confirm(`Delete group "${g}"? Employees in it will become ungrouped.`)) return;
+      Object.values(employeeMeta).forEach(m => { if (m.group === g) m.group = ''; });
+      periods.forEach(p => p.tabs.forEach(t => { ensureTabOverrides(t); Object.values(t.metaOverride).forEach(ov => { if (ov.group === g) ov.group = ''; }); }));
+      logActivity('shift-act', `Group deleted: "${g}"`, '');
+      groups.splice(i, 1);
+      saveData(); renderGroupMgr(); render(); renderEmpModal();
+    });
+  });
+}
+document.getElementById('openGroupMgr').addEventListener('click', () => { renderGroupMgr(); document.getElementById('groupMgrModal').classList.add('open'); });
+document.getElementById('groupMgrCloseBtn').addEventListener('click', () => document.getElementById('groupMgrModal').classList.remove('open'));
+document.getElementById('groupMgrModal').addEventListener('click', e => { if (e.target===document.getElementById('groupMgrModal')) document.getElementById('groupMgrModal').classList.remove('open'); });
+document.getElementById('mgrAddGroupBtn').addEventListener('click', () => {
+  const name = 'New Group ' + (groups.length+1);
+  groups.push(name);
+  logActivity('shift-act', `Group created: "${name}"`, '');
+  saveData(); renderGroupMgr(); render();
+});
+
+// ── EMPLOYEE MODAL ───────────────────────────────────────────────────────────
+function renderEmpModal() {
+  const list = document.getElementById('modalEmpList');
+  const emps = sortedEmployees();
+  list.innerHTML = emps.length
+    ? emps.map(e => {
+        const m = getEmpMeta(e);
+        const cat = m.category ? getCategory(m.category) : null;
+        const dot = cat ? `<span class="cat-dot" style="background:${esc(cat.color)}" title="${esc(cat.label)}"></span>` : '';
+        const no = m.empNo && m.empNo !== '000000' ? ` <span class="emp-no">(${esc(m.empNo)})</span>` : '';
+        const grp = m.group ? `<span class="emp-group-tag">${esc(m.group)}</span>` : '';
+        return `<div class="memp" data-emp="${esc(e)}">
+          <span class="memp-info">${dot}${esc(e)}${no}${grp}</span>
+          <span class="memp-actions">
+            <button class="memp-edit" data-emp="${esc(e)}" title="Edit">✎</button>
+            <button class="memp-del" data-emp="${esc(e)}" title="Remove">✕</button>
+          </span>
+        </div>`;
+      }).join('')
+    : `<span style="color:#6c757d;font-size:12px">No employees yet.</span>`;
+  list.querySelectorAll('.memp-del').forEach(b => b.addEventListener('click', () => removeEmpByName(b.dataset.emp)));
+  list.querySelectorAll('.memp-edit').forEach(b => b.addEventListener('click', () => openEmpEditModal(b.dataset.emp)));
+}
+function removeEmpByName(name) {
+  const emps = currentEmployees();
+  const i = emps.indexOf(name);
+  if (i === -1) return;
+  // Employees are shared across the whole app, so removing one here removes
+  // them everywhere — every period, every week's assignments and overrides.
+  if (!confirm(`Remove "${name}" from the app? This will clear their assignments in every roster period.`)) return;
+  emps.splice(i, 1);
+  delete employeeMeta[name];
+  periods.forEach(p => p.tabs.forEach(t => {
+    ensureTabOverrides(t);
+    delete t.metaOverride[name];
+    delete t.availability[name];
+    t.data.forEach(shift => shift.slots.forEach(row => {
+      for (let j = 0; j < row.length; j++) if (row[j] === name) row[j] = '';
+    }));
+  }));
+  saveData(); render(); renderEmpModal();
+}
+
+// ── EMPLOYEE EDIT MODAL (name, number, category, group, availability) ────────
+let empEditTarget = null;
+let empEditAvailability = []; // working copy edited in the modal, committed on Save
+function populateCategorySelect(sel, selected) {
+  sel.innerHTML = '<option value="">— None —</option>' + categories.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
+  sel.value = selected || '';
+}
+function populateGroupSelect(sel, selected) {
+  sel.innerHTML = '<option value="">— None —</option>' + groups.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  sel.value = selected || '';
+}
+function renderEmpEditAvailList() {
+  const el = document.getElementById('empEditAvailList');
+  el.innerHTML = empEditAvailability.length
+    ? empEditAvailability.map((a, i) => `
+      <div class="avail-row" data-i="${i}">
+        <select class="avail-day" data-i="${i}">
+          ${DAYS.map((d, di) => `<option value="${di}"${a.day===di?' selected':''}>${esc(d)}</option>`).join('')}
+        </select>
+        <input type="time" class="avail-start" data-i="${i}" value="${esc(a.start||'')}" />
+        <span>–</span>
+        <input type="time" class="avail-end" data-i="${i}" value="${esc(a.end||'')}" />
+        <button class="avail-del" data-i="${i}" title="Remove">✕</button>
+      </div>`).join('')
+    : `<span style="color:#6c757d;font-size:12px;">No restrictions — free every day.</span>`;
+  el.querySelectorAll('.avail-day').forEach(sel => sel.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].day = +e.target.value; }));
+  el.querySelectorAll('.avail-start').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].start = e.target.value; }));
+  el.querySelectorAll('.avail-end').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].end = e.target.value; }));
+  el.querySelectorAll('.avail-del').forEach(btn => btn.addEventListener('click', () => { empEditAvailability.splice(+btn.dataset.i, 1); renderEmpEditAvailList(); }));
+}
+document.getElementById('empEditAvailAddBtn').addEventListener('click', () => {
+  empEditAvailability.push({ day: 0, start: '10:00', end: '18:00' });
+  renderEmpEditAvailList();
+});
+function openEmpEditModal(name) {
+  empEditTarget = name;
+  const meta = getEmpMeta(name);
+  document.getElementById('empEditName').value = name;
+  document.getElementById('empEditNo').value = meta.empNo || '000000';
+  populateCategorySelect(document.getElementById('empEditCategory'), meta.category);
+  populateGroupSelect(document.getElementById('empEditGroup'), meta.group);
+  ensureTabOverrides(currentTab());
+  document.getElementById('empEditWeekOnly').checked = !!currentTab().metaOverride[name] || Object.prototype.hasOwnProperty.call(currentTab().availability, name);
+  empEditAvailability = JSON.parse(JSON.stringify(meta.availability || []));
+  renderEmpEditAvailList();
+  document.getElementById('empEditModal').classList.add('open');
+}
+document.getElementById('empEditCancelBtn').addEventListener('click', () => document.getElementById('empEditModal').classList.remove('open'));
+document.getElementById('empEditModal').addEventListener('click', e => { if (e.target===document.getElementById('empEditModal')) document.getElementById('empEditModal').classList.remove('open'); });
+document.getElementById('empEditSaveBtn').addEventListener('click', () => {
+  if (!empEditTarget) return;
+  const emps = currentEmployees();
+  let newName = document.getElementById('empEditName').value.trim();
+  let no = document.getElementById('empEditNo').value.trim();
+  no = /^\d{1,6}$/.test(no) ? no.padStart(6, '0') : '000000';
+  const category = document.getElementById('empEditCategory').value;
+  const group = document.getElementById('empEditGroup').value;
+  const weekOnly = document.getElementById('empEditWeekOnly').checked;
+
+  if (newName && newName !== empEditTarget) {
+    if (emps.includes(newName)) { alert('An employee with that name already exists.'); return; }
+    const idx = emps.indexOf(empEditTarget);
+    if (idx !== -1) emps[idx] = newName;
+    // Employees are shared across the whole app — migrate shift assignments,
+    // status keys, and per-tab overrides/availability in EVERY period, not
+    // just the one currently open.
+    periods.forEach(p => p.tabs.forEach(t => {
+      t.data.forEach(shift => shift.slots.forEach(row => {
+        for (let j = 0; j < row.length; j++) if (row[j] === empEditTarget) row[j] = newName;
+      }));
+      ensureStatusAssignments(t);
+      const prefix = empEditTarget + '||';
+      Object.keys(t.statusAssignments).forEach(k => {
+        if (k.startsWith(prefix)) {
+          t.statusAssignments[newName + '||' + k.slice(prefix.length)] = t.statusAssignments[k];
+          delete t.statusAssignments[k];
+        }
+      });
+      ensureTabOverrides(t);
+      if (t.metaOverride[empEditTarget]) { t.metaOverride[newName] = t.metaOverride[empEditTarget]; delete t.metaOverride[empEditTarget]; }
+      if (Object.prototype.hasOwnProperty.call(t.availability, empEditTarget)) { t.availability[newName] = t.availability[empEditTarget]; delete t.availability[empEditTarget]; }
+    }));
+    employeeMeta[newName] = employeeMeta[empEditTarget] || { empNo: '000000', category: '', group: '', availability: [] };
+    delete employeeMeta[empEditTarget];
+    logActivity('rename', `Employee renamed: "${empEditTarget}" → "${newName}"`, '');
+    empEditTarget = newName;
+  }
+
+  // Employee number is always global.
+  const gm = getGlobalEmpMeta(empEditTarget);
+  gm.empNo = no;
+
+  const tab = currentTab();
+  ensureTabOverrides(tab);
+  const newAvailability = empEditAvailability.filter(a => a.start && a.end).map(a => ({ day: a.day, start: a.start, end: a.end }));
+  if (weekOnly) {
+    // Scope category/group/availability to this week (tab) only — global
+    // default and every other week are left untouched.
+    tab.metaOverride[empEditTarget] = { category, group };
+    tab.availability[empEditTarget] = newAvailability;
+  } else {
+    // Set the global default (auto-applied to every week, including future
+    // ones) and clear this tab's own overrides, if any, so it now follows
+    // the new default too.
+    gm.category = category; gm.group = group; gm.availability = newAvailability;
+    delete tab.metaOverride[empEditTarget];
+    delete tab.availability[empEditTarget];
+  }
+
+  saveData(); render(); renderEmpModal();
+  document.getElementById('empEditModal').classList.remove('open');
+});
+
+document.getElementById('openEmpModal').addEventListener('click', () => { document.getElementById('empModal').classList.add('open'); renderEmpModal(); });
+document.getElementById('modalCloseBtn').addEventListener('click', () => document.getElementById('empModal').classList.remove('open'));
+document.getElementById('empModal').addEventListener('click', e => { if (e.target===document.getElementById('empModal')) document.getElementById('empModal').classList.remove('open'); });
+document.getElementById('modalAddBtn').addEventListener('click', () => {
+  const input = document.getElementById('modalEmpInput');
+  const name = input.value.trim();
+  const emps = currentEmployees();
+  if (name && !emps.includes(name)) {
+    emps.push(name); emps.sort();
+    saveData(); render(); renderEmpModal();
+    input.value=''; input.focus();
+  }
+});
+document.getElementById('modalEmpInput').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('modalAddBtn').click(); });
+document.getElementById('importCsvBtn').addEventListener('click', () => document.getElementById('csvFileInput').click());
+document.getElementById('csvFileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    const names = evt.target.result.split(/[\n,]+/).map(n=>n.trim()).filter(Boolean);
+    const emps = currentEmployees();
+    let added = 0;
+    names.forEach(n => { if (n && !emps.includes(n)) { emps.push(n); added++; } });
+    if (added>0) { emps.sort(); saveData(); render(); renderEmpModal(); alert(`Added ${added} employees to "${currentPeriod().name}"`); }
+  };
+  reader.readAsText(file); e.target.value='';
+});
+
+// ── PERIOD MODAL ─────────────────────────────────────────────────────────────
+document.getElementById('addPeriodBtn').addEventListener('click', () => {
+  document.getElementById('periodNameInput').value = '';
+  document.querySelectorAll('input[name="periodType"]')[0].checked = true;
+  const sel = document.getElementById('dupPeriodSource');
+  sel.innerHTML = '<option value="">— Select period to duplicate —</option>';
+  periods.forEach((p,i) => { const o=document.createElement('option'); o.value=i; o.textContent=p.name; sel.appendChild(o); });
+  sel.style.display = 'none';
+  document.getElementById('periodModal').classList.add('open');
+  setTimeout(() => document.getElementById('periodNameInput').focus(), 80);
+});
+document.querySelectorAll('input[name="periodType"]').forEach(r => {
+  r.addEventListener('change', () => { document.getElementById('dupPeriodSource').style.display = r.value==='duplicate'?'block':'none'; });
+});
+document.getElementById('periodCancelBtn').addEventListener('click', () => document.getElementById('periodModal').classList.remove('open'));
+document.getElementById('periodModal').addEventListener('click', e => { if (e.target===document.getElementById('periodModal')) document.getElementById('periodModal').classList.remove('open'); });
+document.getElementById('periodCreateBtn').addEventListener('click', () => {
+  const name = document.getElementById('periodNameInput').value.trim();
+  if (!name) { alert('Please enter a period name.'); return; }
+  const type = document.querySelector('input[name="periodType"]:checked').value;
+  if (type==='duplicate') {
+    const srcIdx = parseInt(document.getElementById('dupPeriodSource').value);
+    if (isNaN(srcIdx)) { alert('Please select a period to duplicate.'); return; }
+    periods.push(deepCopyPeriod(periods[srcIdx], name));
+    logActivity('period', `Period created: "${name}" (duplicated from "${periods[srcIdx].name}")`, '');
+  } else {
+    const newPeriod = makeDefaultPeriod(name);
+    // Shifts are shared globally, so a brand new period's first tab should
+    // start with the same shift set already in use elsewhere in the app.
+    const existing = allTabsEverywhere().find(t => t !== newPeriod.tabs[0]);
+    if (existing) mirrorShiftDefsOntoTab(existing, newPeriod.tabs[0]);
+    periods.push(newPeriod);
+    logActivity('period', `Period created: "${name}"`, '');
+  }
+  activePeriod = periods.length-1; activeTab = 0;
+  document.getElementById('periodModal').classList.remove('open');
+  saveData(); render();
+});
+
+// ── OTHER BUTTONS ─────────────────────────────────────────────────────────────
+document.getElementById('allowException').addEventListener('change', e => {
+  allowExceptions = e.target.checked;
+  render();
+});
+document.getElementById('showRosterBtn').addEventListener('click', () => { activePage = 'roster'; render(); });
+document.getElementById('showShiftsBtn').addEventListener('click', () => { activePage = 'shifts'; render(); });
+document.getElementById('showEmployeesBtn').addEventListener('click', () => { activePage = 'employees'; render(); });
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (!confirm(`Clear all assignments in tab "${currentTab().name}"?`)) return;
+  logActivity('clear', `All assignments cleared in tab "${currentTab().name}"`, `${currentPeriod().name} · ${currentTab().name}`);
+  currentTab().data.forEach(shift => shift.slots.forEach(row => row.fill('')));
+  saveData(); render();
+});
+document.getElementById('printBtn').addEventListener('click', () => {
+  const rv = document.getElementById('rosterView');
+  const sv = document.getElementById('shiftsView');
+  const ev = document.getElementById('employeesView');
+  [rv, sv, ev].forEach(el => el.classList.remove('print-show'));
+  ({ roster: rv, shifts: sv, employees: ev }[activePage]).classList.add('print-show');
+  window.print();
+  [rv, sv, ev].forEach(el => el.classList.remove('print-show'));
+});
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ periods, statusTypes, categories, groups, employees, employeeMeta, activityHistory, activePeriod, activeTab, version:'1.5' },null,2)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'roster_by_name_backup_'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+});
+document.getElementById('copyDataBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(JSON.stringify({ periods, statusTypes, categories, groups, employees, employeeMeta, activityHistory, activePeriod, activeTab, version:'1.5' })).then(() => alert('Data copied to clipboard!'));
+});
+document.getElementById('importBtn').addEventListener('click', () => {
+  const input = document.createElement('input'); input.type='file'; input.accept='.json';
+  input.onchange = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const imp = JSON.parse(evt.target.result);
+        if (!confirm('This will replace all current data. Continue?')) return;
+        if (!imp.periods) { alert('Unrecognised file format.'); return; }
+        periods = imp.periods;
+        if (imp.statusTypes && imp.statusTypes.length) statusTypes = imp.statusTypes;
+        categories = (imp.categories && imp.categories.length) ? imp.categories : [];
+        groups = (imp.groups && imp.groups.length) ? imp.groups : [];
+        // v1.4+ backups store employees/employeeMeta globally at the top level.
+        employees = (imp.employees && imp.employees.length) ? imp.employees.slice() : [];
+        employeeMeta = imp.employeeMeta ? imp.employeeMeta : {};
+        // v1.4+ backups also carry the Activity History log and the
+        // previously-active roster/week, so a restore is a true exact copy.
+        if (imp.activityHistory && imp.activityHistory.length) { activityHistory = imp.activityHistory; saveHistory(); }
+        // Legacy backups (v1.3 and earlier) kept employees/employeeMeta (incl.
+        // availability) per period — fold those into the new global store.
+        periods.forEach(p => {
+          if (p.dayLabels) {
+            p.tabs.forEach(t => { if (!t.dayLabels) t.dayLabels = p.dayLabels.slice(); });
+            delete p.dayLabels;
+          }
+          if (p.employees || p.employeeMeta) migrateLegacyPeriodEmployees(p, imp.employees);
+          p.tabs.forEach(t => { ensureDayLabels(t); ensureTabOverrides(t); ensureStatusAssignments(t); t.data.forEach(shift => { ensureDayLength(shift); ensureSlotNames(shift); if (shift.color === undefined) shift.color = ''; ensureShiftTimes(shift); }); });
+        });
+        // One-time cleanup (v1.5): older backups have leftover per-week
+        // availability entries from before "this week only" existed — clear
+        // them so the shared default correctly carries forward on import too.
+        if (imp.version !== '1.5') {
+          periods.forEach(p => p.tabs.forEach(t => { t.availability = {}; }));
+        }
+        ensureEmployeesGlobal();
+        ensureEmployeeMetaGlobal();
+        statusTypes.forEach(ensureStatusHoursMode);
+        activePeriod = (typeof imp.activePeriod === 'number' && imp.activePeriod >= 0 && imp.activePeriod < periods.length) ? imp.activePeriod : 0;
+        activeTab = (typeof imp.activeTab === 'number' && imp.activeTab >= 0 && imp.activeTab < periods[activePeriod].tabs.length) ? imp.activeTab : 0;
+        saveData(); render();
+      } catch { alert('Could not read file.'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+});
+
+// ── HISTORY MODAL ─────────────────────────────────────────────────────────────
+document.getElementById('historyBtn').addEventListener('click', openHistoryModal);
+document.getElementById('historyCloseBtn').addEventListener('click', () => document.getElementById('historyModal').classList.remove('open'));
+document.getElementById('historyModal').addEventListener('click', e => { if (e.target===document.getElementById('historyModal')) document.getElementById('historyModal').classList.remove('open'); });
+document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+  if (!confirm('Clear all activity history? This cannot be undone.')) return;
+  activityHistory = []; saveHistory(); renderHistoryModal();
+});
+document.getElementById('histSearch').addEventListener('input', renderHistoryModal);
+document.getElementById('histTypeFilter').addEventListener('change', renderHistoryModal);
+document.getElementById('histPeriodFilter').addEventListener('change', renderHistoryModal);
+
+// ── MAIN RENDER ──────────────────────────────────────────────────────────────
+function renderCategoryLegend() {
+  const el = document.getElementById('categoryLegend');
+  if (!categories.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  el.innerHTML = '<strong style="color:#6c757d;">Legend:</strong>' + categories.map(c =>
+    `<span class="legend-chip"><span class="cat-dot" style="background:${esc(c.color)}"></span>${esc(c.label)}</span>`
+  ).join('');
+}
+function render() {
+  renderPeriodBar(); renderTabBar(); renderCategoryLegend();
+  const rv = document.getElementById('rosterView');
+  const sv = document.getElementById('shiftsView');
+  const ev = document.getElementById('employeesView');
+  rv.style.display = 'none'; sv.classList.remove('active'); ev.classList.remove('active');
+  if (activePage === 'roster') { rv.style.display = 'block'; renderRoster(); }
+  else if (activePage === 'shifts') { sv.classList.add('active'); renderShiftsView(); }
+  else { ev.classList.add('active'); renderEmployeesView(); }
+}
+
+loadData().then(render);
+</script>
+</body>
+</html>
