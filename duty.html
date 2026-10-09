@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Duty Roster — BVN Security</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --navy:#0E2340; --navy-2:#16345E;
+  --bg:#EEF2F6; --card:#FFFFFF; --ink:#16233A; --sub:#5B6B84; --line:#DDE4EC;
+  --amber:#C77D00; --red:#C4341F; --red-bg:#FDECEA; --ok:#1F8A4C;
+  --radius:14px; --shadow:0 1px 2px rgba(14,35,64,.05),0 8px 20px rgba(14,35,64,.07);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:'Manrope',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  -webkit-tap-highlight-color:transparent;
+  padding-bottom:96px;
+}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
+.wrap{max-width:640px;margin:0 auto;padding:0 12px;}
+
+header{
+  background:linear-gradient(135deg,var(--navy) 0%, var(--navy-2) 100%);
+  padding:16px 0 14px; position:relative; overflow:hidden;
+}
+header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle, rgba(0,153,216,.32), transparent 65%);}
+.brand-row{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1;}
+.brand-row h1{color:#fff;font-size:17px;margin:0;font-weight:800;letter-spacing:.2px;}
+.brand-row .sub{color:#B9CBE0;font-size:11px;margin-top:2px;}
+.icon-btn{
+  flex:none;width:38px;height:38px;border-radius:10px;border:1.5px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.08);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+}
+.icon-btn:active{background:rgba(255,255,255,.2);}
+
+.date-row{display:flex;align-items:center;gap:8px;margin-top:12px;position:relative;z-index:1;}
+.date-nav{
+  flex:none;width:36px;height:36px;border-radius:9px;border:1.5px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.08);color:#fff;font-size:16px;font-weight:800;cursor:pointer;
+}
+.date-nav:active{background:rgba(255,255,255,.2);}
+.date-field{
+  flex:1;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.22);border-radius:9px;
+  padding:8px 10px;color:#fff;font-weight:700;font-size:13.5px;text-align:center;
+}
+.date-field input{
+  background:transparent;border:none;color:#fff;font-weight:700;font-size:13.5px;text-align:center;width:100%;
+  font-family:inherit;
+}
+.date-field input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.8;}
+.date-field .wd{font-size:10px;font-weight:700;color:#B9CBE0;text-transform:uppercase;letter-spacing:.6px;margin-top:1px;}
+
+.tabbar{display:flex;gap:7px;margin-top:12px;position:relative;z-index:1;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.tabbar::-webkit-scrollbar{display:none;}
+.tab{
+  flex:0 0 auto;min-width:80px;padding:9px 12px;border-radius:10px;text-align:center;font-size:12.5px;font-weight:800;
+  letter-spacing:.3px;cursor:pointer;border:1.5px solid transparent;color:#fff;
+  background:rgba(255,255,255,.08);position:relative;white-space:nowrap;
+}
+.tab .n{display:block;font-size:10px;font-weight:600;opacity:.75;margin-top:1px;}
+.tab.active{background:#fff;}
+.tab-del{
+  position:absolute;top:-6px;right:-6px;width:17px;height:17px;border-radius:50%;background:var(--red);color:#fff;
+  border:1.5px solid #fff;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.tab-add{
+  flex:0 0 auto;min-width:44px;padding:9px 14px;border-radius:10px;text-align:center;font-size:17px;font-weight:800;
+  cursor:pointer;border:1.5px dashed rgba(255,255,255,.4);color:#fff;background:transparent;
+}
+.tab-add:active{background:rgba(255,255,255,.12);}
+
+.summary{display:flex;gap:8px;margin:12px 0 4px;}
+.sum-chip{
+  flex:1;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;
+  text-align:center;box-shadow:var(--shadow);
+}
+.sum-chip b{display:block;font-size:16px;font-weight:800;color:var(--navy);}
+.sum-chip span{font-size:9.5px;color:var(--sub);text-transform:uppercase;letter-spacing:.4px;font-weight:700;}
+.sum-chip.warn b{color:var(--red);}
+
+.post{
+  background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+  margin-top:10px;border:1.5px solid var(--line);overflow:hidden;
+}
+.post-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--accent-bg);}
+.status-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--sub);}
+.status-dot.full{background:var(--ok);}
+.status-dot.partial{background:var(--amber);}
+.status-dot.empty{background:#B7C1CF;}
+.post-name{
+  flex:1;border:none;background:transparent;font-size:14.5px;font-weight:800;color:var(--navy);
+  font-family:inherit;padding:4px 2px;min-width:0;
+}
+.post-name:focus{outline:none;background:rgba(255,255,255,.6);border-radius:6px;}
+.badge-select{
+  flex:none;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;
+  border:1.5px solid var(--line);border-radius:7px;background:#fff;color:var(--sub);
+  padding:4px 5px;font-family:inherit;
+}
+.post-del{flex:none;width:26px;height:26px;border-radius:50%;border:none;background:transparent;color:var(--red);font-size:15px;cursor:pointer;}
+.post-del:active{background:var(--red-bg);}
+
+.post-body{padding:10px 12px 12px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+.mini-field label{display:block;font-size:9.5px;font-weight:800;color:var(--sub);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;}
+.mini-field input{
+  width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:8px 8px;
+  font-size:13px;font-family:inherit;color:var(--ink);font-weight:700;
+}
+.mini-field input:focus{outline:none;border-color:var(--accent);background:#fff;}
+
+.staff-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+.staff-row{display:flex;gap:6px;align-items:flex-start;}
+.staff-main{flex:1;min-width:0;}
+.staff-name{
+  width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:9px 8px;
+  font-size:13.5px;font-family:inherit;color:var(--ink);font-weight:700;
+}
+.staff-name.dup{border-color:var(--red);background:var(--red-bg);color:var(--red);}
+.staff-name:focus{outline:none;border-color:var(--accent);background:#fff;}
+.staff-code{
+  flex:none;width:88px;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:9px 6px;
+  font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--navy-2);text-align:center;
+}
+.staff-code:focus{outline:none;border-color:var(--accent);background:#fff;}
+.staff-note{
+  width:100%;margin-top:4px;border:1.5px dashed var(--line);border-radius:7px;background:#fff;
+  padding:5px 7px;font-size:11px;font-family:inherit;color:var(--red);font-style:italic;
+}
+.staff-note::placeholder{color:#B7C1CF;font-style:italic;}
+.staff-rm{flex:none;width:30px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--red);font-size:15px;cursor:pointer;}
+.staff-rm:active{background:var(--red-bg);}
+
+.row-small-btn{
+  display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:800;color:var(--accent-deep);
+  background:var(--accent-bg);border:1.5px dashed var(--accent);border-radius:8px;padding:6px 10px;cursor:pointer;
+}
+.row-small-btn:active{opacity:.7;}
+.btnrow{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+
+.break-list{display:flex;flex-direction:column;gap:6px;}
+.break-row{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;}
+.break-row input{
+  width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:8px 7px;
+  font-size:12px;font-family:inherit;color:var(--ink);font-weight:600;
+}
+.break-row input:first-child{font-weight:800;color:var(--navy);}
+.break-row input:focus{outline:none;border-color:var(--accent);background:#fff;}
+.break-rm{flex:none;width:26px;height:26px;border-radius:7px;border:1.5px solid var(--line);background:#fff;color:var(--sub);font-size:13px;cursor:pointer;}
+
+.add-post-btn{
+  width:100%;margin-top:12px;padding:13px;border-radius:12px;border:1.8px dashed var(--sub);
+  background:transparent;color:var(--sub);font-weight:800;font-size:13px;cursor:pointer;
+}
+.add-post-btn:active{background:rgba(91,107,132,.08);}
+
+.bottombar{
+  position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  display:flex;gap:8px;z-index:30;box-shadow:0 -6px 18px rgba(14,35,64,.08);
+}
+.bottombar button{
+  flex:1;padding:12px 8px;border-radius:11px;border:none;font-weight:800;font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-names{background:var(--bg);color:var(--navy);border:1.5px solid var(--line) !important;}
+.btn-print{background:var(--navy);color:#fff;}
+.btn-print:active, .btn-names:active{opacity:.85;}
+
+.overlay{
+  position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;align-items:flex-end;justify-content:center;z-index:50;
+}
+.overlay.show{display:flex;}
+.sheet{
+  background:#fff;width:100%;max-width:640px;border-radius:18px 18px 0 0;max-height:88vh;overflow-y:auto;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom));position:relative;
+}
+.sheet-handle{width:38px;height:4px;background:var(--line);border-radius:3px;margin:0 auto 12px;}
+.sheet h3{margin:0 0 4px;font-size:16px;font-weight:800;color:var(--navy);}
+.sheet .desc{font-size:12px;color:var(--sub);margin-bottom:14px;}
+.close-x{position:absolute;top:14px;right:16px;width:30px;height:30px;border-radius:50%;border:none;background:var(--bg);color:var(--sub);font-size:16px;cursor:pointer;}
+
+.name-add-row{display:flex;gap:8px;margin-bottom:12px;}
+.name-add-row input{
+  flex:1;border:1.5px solid var(--line);border-radius:10px;background:#F8FAFC;padding:11px 10px;font-size:14px;font-family:inherit;
+}
+.name-add-row button{
+  flex:none;background:var(--navy);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:800;font-size:14px;cursor:pointer;
+}
+.csv-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1.5px dashed var(--line);
+  border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;color:var(--sub);font-weight:700;
+}
+.csv-row label{
+  background:#fff;border:1.5px solid var(--line);border-radius:8px;padding:7px 12px;font-weight:800;color:var(--navy);cursor:pointer;font-size:12px;
+}
+.name-list{border:1.5px solid var(--line);border-radius:12px;overflow:hidden;}
+.name-item{
+  display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--navy);
+}
+.name-item:last-child{border-bottom:none;}
+.name-item button{flex:none;width:26px;height:26px;border-radius:50%;border:none;background:transparent;color:var(--red);font-size:15px;cursor:pointer;}
+.name-item button:active{background:var(--red-bg);}
+.name-count{font-size:11px;color:var(--sub);font-weight:700;margin-bottom:8px;}
+
+.toast{
+  position:fixed;left:50%;bottom:100px;transform:translateX(-50%) translateY(20px);
+  background:var(--navy);color:#fff;padding:10px 18px;border-radius:30px;font-size:13px;font-weight:700;
+  box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;z-index:60;
+  max-width:80vw;text-align:center;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.empty-state{text-align:center;padding:40px 20px;color:var(--sub);font-size:13px;}
+</style>
+</head>
+<body>
+
+<datalist id="empList"></datalist>
+
+<header>
+  <div class="wrap">
+    <div class="brand-row">
+      <div>
+        <h1>Duty Roster</h1>
+        <div class="sub">BVN Security · Connolly</div>
+      </div>
+      <button class="icon-btn" id="copyPrevBtn" title="Copy previous saved day">⧉</button>
+    </div>
+    <div class="date-row">
+      <button class="date-nav" id="prevDay">‹</button>
+      <div class="date-field">
+        <input type="date" id="datePick">
+        <div class="wd" id="weekdayLabel">—</div>
+      </div>
+      <button class="date-nav" id="nextDay">›</button>
+    </div>
+    <div class="tabbar" id="tabbar"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="summary" id="summaryStrip"></div>
+  <div id="postsContainer"></div>
+  <button class="add-post-btn" id="addPostBtn">+ Add post</button>
+</div>
+
+<div class="bottombar">
+  <button class="btn-names" id="openNamesBtn">👤 Manage names</button>
+  <button class="btn-names" id="opSendBtn">📡 Send to Onboard Patrol</button>
+  <button class="btn-print" id="printBtn">🖨 Print / PDF</button>
+</div>
+
+<div class="overlay" id="namesOverlay">
+  <div class="sheet">
+    <button class="close-x" id="namesClose">✕</button>
+    <div class="sheet-handle"></div>
+    <h3>Manage names</h3>
+    <div class="desc">Used across every post's name field. Type 2–3 letters in any name box on the roster to get suggestions.</div>
+    <div class="name-add-row">
+      <input type="text" id="newNameInput" placeholder="Add a name…">
+      <button id="addNameBtn">Add</button>
+    </div>
+    <div class="csv-row">
+      <span>Import names from CSV</span>
+      <label for="csvFile">Choose file</label>
+      <input type="file" id="csvFile" accept=".csv,text/csv" style="display:none;">
+    </div>
+    <div class="name-count" id="nameCount">0 names</div>
+    <div class="name-list" id="nameList"></div>
+  </div>
+</div>
+
+<div class="overlay" id="addPostOverlay">
+  <div class="sheet">
+    <button class="close-x" id="addPostClose">✕</button>
+    <div class="sheet-handle"></div>
+    <h3>Add a new post</h3>
+    <div class="desc" id="addPostDesc">Added to the current tab. You can edit every field afterwards.</div>
+    <div class="name-add-row">
+      <input type="text" id="newPostName" placeholder="Post name, e.g. Central">
+      <button id="createPostBtn">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="addSectionOverlay">
+  <div class="sheet">
+    <button class="close-x" id="addSectionClose">✕</button>
+    <div class="sheet-handle"></div>
+    <h3>Add a new tab</h3>
+    <div class="desc">Creates a new line/group, like DART or NORTHERN, with its own posts.</div>
+    <div class="name-add-row">
+      <input type="text" id="newSectionName" placeholder="Tab name, e.g. Luas">
+      <button id="createSectionBtn">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============== THEME PALETTE (cycled across tabs) ============== */
+const THEMES = [
+  {bg:'#E7F6FD', accent:'#0099D8', deep:'#0077AD'},
+  {bg:'#E7F8EF', accent:'#1F9D63', deep:'#167A4C'},
+  {bg:'#FFF4E2', accent:'#C77D00', deep:'#9C6300'},
+  {bg:'#F3ECFC', accent:'#7C4DCB', deep:'#5E36A3'},
+  {bg:'#FDECEA', accent:'#C4341F', deep:'#9C2717'},
+  {bg:'#E6F7F7', accent:'#0F9E9E', deep:'#0B7A7A'}
+];
+function themeFor(idx){ return THEMES[idx % THEMES.length]; }
+
+/* ============== EMPLOYEE LIST ============== */
+const DEFAULT_EMPLOYEES = ["Abdulahi Ali","Ahmet Bilgin","Ali Arshad","Ali Shaher","Amine Ahmat","Anderson Andrade","Anisse Naceur","Antonio Papi","Badugu Kranthikumar","Balu Gundameedi","Berat Akbulut","Bouba Mamudou","Boubaker Mejri","Bruno Rodrighero","Caio Neto","Cassio Crosara","Christopher Omoregie","Cleiton Mota","Crispen Mthombeni","Dhanraj Manesh","Dhiogo Meshiati","Eduardo Amaral","Eduardo Silveira","Egidijus Sinkunas","Emiliano Ramalho","Fazulul Waleeth","Fernando Matile","Francois Kunbi","Fuad Muhammed","Gabriel Sacconi","Giedrius Blazevicius","Gleidson Oliveira","Hamza Derrouiche","Hamza Kinas","Hardeep Singh","Helder Biottulfe","Hugo Janelli","Iury Pires","Jack Lydon","Jakub Stanik","Jefferson Leite","Jhonata Santos","Josias Leal","Kaue Fernandes","Kemoko Camara","Leo Rocha","Leonardo Ferrazoli","Luciano Henrique","Maicon Silva","Marcin Antoszac","Martinho Souza","Martins Teicans","Matheus Rodrigues","Matheus Silva","Michael Kumah","Mickel Lisboa","Mitterrant Tchouha","Muhammad Sufyan","Muhammet Selen","Muhammet Topcu","Mustafa Durak","Navin Kadam","Nitesh Thota","Pablo Carvalho","Paul Hayes","Paul Stamper","Pedro Collin","Pedro Leitao","Petrus Lage","Piotr Ferfecki","Prahaladh Lagadapati","Pramodh Lagadapati","Prem Kayala","Prudhvi Chankarla","Rafael Falcao","Rahul Kalayan","Rajendar Naik","Ramu Namburi","Richard Fernands","Robert Skarinovics","Robson Gomes","Rohith Rolla","Roma Simsons","Rudson Soares","Saheed Sonariwo","Sasa Surbanovic","Savas Akyuz","Shane Smithers","Sidali Mouloud","Slaven Mirovi","Soufyane Mezroua","Sri Hari","Sullaiman Issa","Tiago Freitas","Umer Tilal","Vinicius Goes","Vinicius Lima","Virginijus Vydmantas","Wayne Clarke","Wellington Santos","Weslley Pereira","Wilson Souza","Yasin Shaik","Yusuf Makajuola"];
+
+const LS_EMP_CUSTOM = 'roster_emp_custom';
+const LS_EMP_HIDDEN = 'roster_emp_hidden';
+
+function getCustomEmployees(){ try{ return JSON.parse(localStorage.getItem(LS_EMP_CUSTOM)||'[]'); }catch(e){ return []; } }
+function setCustomEmployees(list){ localStorage.setItem(LS_EMP_CUSTOM, JSON.stringify(list)); }
+function getHiddenDefaults(){ try{ return JSON.parse(localStorage.getItem(LS_EMP_HIDDEN)||'[]'); }catch(e){ return []; } }
+function setHiddenDefaults(list){ localStorage.setItem(LS_EMP_HIDDEN, JSON.stringify(list)); }
+
+function getAllEmployees(){
+  const hidden = getHiddenDefaults();
+  const base = DEFAULT_EMPLOYEES.filter(n => !hidden.includes(n));
+  const custom = getCustomEmployees();
+  return [...new Set([...base, ...custom])].sort((a,b)=>a.localeCompare(b));
+}
+function renderEmployeeDatalist(){
+  const list = getAllEmployees();
+  document.getElementById('empList').innerHTML = list.map(n=>'<option value="'+escapeHtml(n)+'">').join('');
+}
+function addEmployee(name){
+  name = name.trim();
+  if(!name) return false;
+  const all = getAllEmployees();
+  if(all.some(n=>n.toLowerCase()===name.toLowerCase())){ toast('Already in the list'); return false; }
+  const custom = getCustomEmployees();
+  custom.push(name);
+  setCustomEmployees(custom);
+  renderEmployeeDatalist();
+  renderNameList();
+  return true;
+}
+function removeEmployee(name){
+  if(DEFAULT_EMPLOYEES.includes(name)){
+    const hidden = getHiddenDefaults();
+    if(!hidden.includes(name)){ hidden.push(name); setHiddenDefaults(hidden); }
+  }
+  const custom = getCustomEmployees().filter(n=>n!==name);
+  setCustomEmployees(custom);
+  renderEmployeeDatalist();
+  renderNameList();
+  toast('Removed ' + name);
+}
+function renderNameList(){
+  const list = getAllEmployees();
+  document.getElementById('nameCount').textContent = list.length + ' name' + (list.length===1?'':'s');
+  document.getElementById('nameList').innerHTML = list.map(n=>
+    '<div class="name-item"><span>'+escapeHtml(n)+'</span><button data-rm-name="'+escapeHtml(n)+'">✕</button></div>'
+  ).join('') || '<div class="empty-state">No names yet</div>';
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+/* ============== POST / SECTION FACTORIES ============== */
+function mkPost(name,badge,time,radio,staffPairs,breakPairs){
+  return {
+    id: 'p'+Math.random().toString(36).slice(2,10),
+    name: name, badge: badge, time: time, radio: radio,
+    staff: staffPairs.map(function(s){ return {name:s[0]||'', code:s[1]||'', note:s[2]||''}; }),
+    breaks: breakPairs.map(function(b){ return {label:b[0], value:b[1]}; })
+  };
+}
+function mkSection(id, title, theme, posts){
+  return { id: id, title: title, theme: theme, posts: posts || [] };
+}
+
+function seedTemplate(){
+  const dartPosts = [
+    mkPost('Day North','Radio Direct','10:00 - 18:00','086 831 9473',[['Fernando Matile','DN1:2400 112'],['Josias Leal','DN2:2400 113']],[['Break Time','14:00-15:00'],['Break Location','Kilbarrack']]),
+    mkPost('Kilbarrack','Radio Direct','16:30 - 00:30','086 831 9277',[['Dhiogo Meshiati','KI1:2400 120'],['Gleidson Oliveira','KI2:2400 121']],[['Break Time','17-18 / 19-20'],['Break Location','Kilbarrack']]),
+    mkPost('Howth Static','Radio Direct','16:30 - 00:30','086 831 9230',[['Ramu Namburi','HS1:2400 118'],['Ali Shaher','HS2:2400 119']],[['Break Time','20:00-21:00'],['Break Location','Howth']]),
+    mkPost('North Alpha','Radio Direct','16:30 - 00:30','086 831 9719',[['Pedro Leitao','NA1:2400 122'],['Petrus Lage','NA2:2400 123','havoc cover']],[['Break Time','21-22'],['Break Location','Howth']]),
+    mkPost('North Bravo','Radio Direct','16:30 - 00:30','086 831 9272',[['Bruno Rodrighero','NB1:2400 124'],['Leonardo Ferrazoli','NB2:2400 125']],[['Break Time','20:00-21:00'],['Break Location','Malahide St']]),
+    mkPost('North Charlie','Radio Direct','16:30 - 00:30','086 831 9704',[['Matheus Rodrigues','NC1:2400 126','To cover HJ 20-21'],['Hamza Kinas','NC2:2400 127']],[['Break time','19:00-20:00'],['Break Location','Kilbarrack']]),
+    mkPost('Day South','Radio Direct','11:00 - 19:00','086 831 9275',[['Jack Lydon','DS1:2400 114'],['Vinicius Goes','DS2:2400 116']],[['Break Time','15:00-16:00'],['Break Location','Dun Laoghaire']]),
+    mkPost('Bray Static','Radio Direct','15:00 - 00:30','086 831 9716',[['Prem Kayala','BR1:2400 106'],['Abdulahi Ali','BR2:2400 107']],[['Break Time','19:00-21:00'],['Break Location','Bray Phone']]),
+    mkPost('Tara Street','Radio Direct','16:30 - 00:30','086 831 9645',[['Hugo Janelli','TA1:2400 141'],['Christopher Omoregie','TA2:2400 142']],[['Break Time','19-20 / 20-21h'],['Break Location','Tara']]),
+    mkPost('South Alpha','Radio Direct','16:30 - 00:30','086 831 9718',[['Jakub Stanik','SA1:2400 133'],['Paul Stamper','SA2:2400 134']],[['Break Time','21-22:00'],['Break Location','Bray']]),
+    mkPost('South Bravo','Radio Direct','16:30 - 00:30','086 831 9252',[['Rudson Soares','SB1:2400 137'],['Eduardo Amaral','SB2:2400 138']],[['Break Time','19:00-20:00'],['Break Location','Dun Laoghaire']]),
+    mkPost('Central','Radio Direct','16:30 - 00:30','086 831 9473',[['Pedro Collin','CE1:2400 108'],['Emiliano Ramalho','CE2:2400 136']],[['Break Time','20-21h'],['Break Location','Pearse Station']])
+  ];
+  const northernPosts = [
+    mkPost('Balbriggan Line','Radio Direct','10:00 - 19:30','086 832 0733',[['Berat Akbulut','BL1:2400 132'],['Vinicius Lima','BL2:2400 150']],[['Break in Connolly (Mon-Fri)','15h-16h'],['Break in Connolly (Sat)','14h-15h'],['Break in Connolly (Sun & BH)','14h-15h']]),
+    mkPost('Maynooth Line','Radio Direct','10:00 - 19:30','086 830 2492',[['Ali Arshad','ML1:2400 032'],['Jefferson Leite','ML2:2400 063']],[['Break in Connolly (Mon-Fri)','14h-15h'],['Break in Connolly (Sat)','14h-15h'],['Break in Connolly (Sun & BH)','15h-16h']]),
+    mkPost('Sligo Line','Radio Direct','12:30 - 22:30','086 831 9644',[['Sidali Mouloud','SL1:2400 139'],['Bouba Mamudou','SL2:2400 140']],[['Break Time','18:25-19:25'],['Break Location','Connolly']]),
+    mkPost('Belfast Line','Radio Direct','14:30 - 23:30','086 831 9361',[['Caio Neto','BE1:2400 104'],['Iury Pires','BE2:2400 105']],[['Break Time (Dundalk)','19:00-20:00'],['Break Location','Dundalk']]),
+    mkPost('Pelletstown','Radio Direct','16:00 - 00:00','086 832 0720',[['Covered by Northern / North West','PE1:2400 130'],['','PE2:2400 131']],[['Break Time','20:00-21:00'],['Break Location','Navan Road']]),
+    mkPost('Rosslare','Radio Direct','10:00 - 17:30','086 831 9361',[['Not Operating','BE1:2400 104'],['Not Operating','BE2:2400 105']],[['Time','13:30-14:00'],['Break Location','Rosslare']]),
+    mkPost('Northern','Radio Direct','16:30 - 00:30','086 831 9650',[['Martins Teicans','NO1:2400 128'],['Giedrius Blazevicius','NO2:2400 129']],[['Break Time','20:00-21:00'],['Break Location','Connolly St']]),
+    mkPost('North West','Radio Direct','16:00 - 00:30','086 832 0702',[['Luciano Henrique','NW1:2400 046'],['Rafael Falcao','NW2:2400 083']],[['Break in Connolly (Mon-Fri)','21:10-22:10'],['Break in Connolly (Sat)','19h-20h'],['Break in Connolly (Sun & BH)','21:10-22:10']]),
+    mkPost('North East','On Duty','16:30 - 00:30','086 831 9692',[['Mitterrant Tchouha','NE1:2400 054'],['Antonio Papi','NE2:2400 117']],[['Break in Connolly (Mon-Fri)','20h-21h'],['Break in Connolly (Sat)','19h-20h'],['Break in Connolly (Sun & BH)','20h-21h']]),
+    mkPost('Car Alpha','On Duty','16:30 - 01:30','086 831 9668',[['Muhammet Selen','CA1:2400 110'],['Michael Kumah','CA2:2400 111']],[['Break time','21:00-22:00'],['Break Location','Connolly']]),
+    mkPost('Car Bravo','Radio Direct','16:30 - 01:00','086 830 2567',[['Soufyane Mezroua','CB1:2400 061'],['Slaven Mirovi','CB2:2400 027','Static in HJ']],[['Break time','20:00-21:00'],['Break Location','Navan Road']]),
+    mkPost('OCS On-Board Supervisor','On Duty','','',[['Leo Rocha',''],['','083 831 9678']],[])
+  ];
+  return {
+    sections: [
+      mkSection('dart','DART',0,dartPosts),
+      mkSection('northern','NORTHERN',1,northernPosts)
+    ]
+  };
+}
+
+/* Migrate old {dart:[],northern:[]} shape (pre-tabs version) into sections[] */
+function migrateIfNeeded(d){
+  if(!d) return d;
+  if(d.sections) return d;
+  if(d.dart || d.northern){
+    return { sections: [
+      mkSection('dart','DART',0,d.dart||[]),
+      mkSection('northern','NORTHERN',1,d.northern||[])
+    ]};
+  }
+  return d;
+}
+
+/* ============== STATE / PERSISTENCE ============== */
+const LS_PREFIX = 'roster_day_';
+let state = { date: todayStr(), section: 'dart', data: null };
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function loadDay(dateStr){
+  try{
+    const raw = localStorage.getItem(LS_PREFIX+dateStr);
+    if(raw) return migrateIfNeeded(JSON.parse(raw));
+  }catch(e){}
+  return null;
+}
+function saveDay(dateStr, data){ localStorage.setItem(LS_PREFIX+dateStr, JSON.stringify(data)); }
+function listSavedDates(){
+  const out = [];
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(k && k.indexOf(LS_PREFIX)===0) out.push(k.slice(LS_PREFIX.length));
+  }
+  return out.sort();
+}
+function findPreviousDate(beforeDate){
+  const all = listSavedDates().filter(function(d){ return d<beforeDate; });
+  return all.length ? all[all.length-1] : null;
+}
+function blankCopy(dayData){
+  const clone = JSON.parse(JSON.stringify(dayData));
+  clone.sections.forEach(function(sec){
+    sec.posts.forEach(function(p){
+      p.time='';
+      p.staff.forEach(function(s){ s.name=''; s.note=''; });
+      p.breaks.forEach(function(b){ b.value=''; });
+    });
+  });
+  return clone;
+}
+function ensureDayLoaded(dateStr){
+  let d = loadDay(dateStr);
+  if(!d){
+    const prev = findPreviousDate(dateStr);
+    if(prev){
+      d = blankCopy(loadDay(prev));
+      toast('New day started from ' + prev + ' structure');
+    } else {
+      d = seedTemplate();
+    }
+    saveDay(dateStr, d);
+  }
+  return d;
+}
+function persist(){ saveDay(state.date, state.data); }
+
+/* ============== HELPERS ============== */
+function getSection(id){ return state.data.sections.find(function(s){ return s.id===id; }); }
+function getCurrentSection(){ return getSection(state.section); }
+function findPost(id){
+  const sec = getCurrentSection();
+  return sec ? sec.posts.find(function(p){ return p.id===id; }) : null;
+}
+function allStaffEntries(){
+  const out = [];
+  state.data.sections.forEach(function(sec){
+    sec.posts.forEach(function(p){ p.staff.forEach(function(s){ out.push(s); }); });
+  });
+  return out;
+}
+function isRealName(n){
+  n = (n||'').trim();
+  if(!n) return false;
+  const low = n.toLowerCase();
+  if(low==='not operating' || low.indexOf('covered by')===0) return false;
+  return true;
+}
+
+/* ============== RENDER ============== */
+const postsContainer = document.getElementById('postsContainer');
+const datePick = document.getElementById('datePick');
+const weekdayLabel = document.getElementById('weekdayLabel');
+
+function setDate(dateStr){
+  state.date = dateStr;
+  state.data = ensureDayLoaded(dateStr);
+  if(!getSection(state.section)) state.section = state.data.sections[0] ? state.data.sections[0].id : null;
+  datePick.value = dateStr;
+  const d = new Date(dateStr+'T00:00:00');
+  weekdayLabel.textContent = d.toLocaleDateString('en-IE',{weekday:'long', day:'2-digit', month:'2-digit', year:'numeric'});
+  renderAll();
+}
+
+function renderAll(){
+  renderTabs();
+  renderPosts();
+  validateDuplicates();
+}
+
+function renderTabs(){
+  const tabbar = document.getElementById('tabbar');
+  let html = state.data.sections.map(function(sec){
+    const th = themeFor(sec.theme);
+    const active = sec.section===undefined && sec.id===state.section;
+    const isActive = sec.id===state.section;
+    const style = isActive ? ('background:#fff;color:'+th.deep+';') : ('background:rgba(255,255,255,.08);color:#fff;');
+    const delBtn = state.data.sections.length>1 ? '<span class="tab-del" data-del-section="'+sec.id+'" title="Delete tab">✕</span>' : '';
+    return '<div class="tab" data-sec="'+sec.id+'" style="'+style+'">'+delBtn+escapeHtml(sec.title)+'<span class="n">'+sec.posts.length+' posts</span></div>';
+  }).join('');
+  html += '<div class="tab-add" id="tabAddBtn">+</div>';
+  tabbar.innerHTML = html;
+}
+
+function renderSummary(){
+  const sec = getCurrentSection();
+  const posts = sec ? sec.posts : [];
+  let filled=0, partial=0, empty=0;
+  posts.forEach(function(p){
+    const names = p.staff.map(function(s){ return s.name; }).filter(isRealName);
+    const slots = p.staff.length;
+    if(slots===0) return;
+    if(names.length===slots) filled++;
+    else if(names.length>0) partial++;
+    else empty++;
+  });
+  const conflicts = getDuplicateNames().size;
+  document.getElementById('summaryStrip').innerHTML =
+    '<div class="sum-chip"><b>'+filled+'</b><span>Fully staffed</span></div>'+
+    '<div class="sum-chip"><b>'+partial+'</b><span>Partial</span></div>'+
+    '<div class="sum-chip"><b>'+empty+'</b><span>Empty</span></div>'+
+    '<div class="sum-chip '+(conflicts?'warn':'')+'"><b>'+conflicts+'</b><span>Duplicates</span></div>';
+}
+
+function renderPosts(){
+  const sec = getCurrentSection();
+  if(!sec || !sec.posts.length){
+    postsContainer.innerHTML = '<div class="empty-state">No posts yet in this tab. Add one below.</div>';
+    renderSummary();
+    return;
+  }
+  const th = themeFor(sec.theme);
+  const styleVars = '--accent:'+th.accent+';--accent-bg:'+th.bg+';--accent-deep:'+th.deep+';';
+  postsContainer.innerHTML = sec.posts.map(function(p){ return renderPostCard(p, styleVars); }).join('');
+  renderSummary();
+}
+
+function renderPostCard(p, styleVars){
+  const staffHtml = p.staff.map(function(s,i){
+    return '<div class="staff-row">'+
+      '<div class="staff-main">'+
+        '<input class="staff-name" type="text" list="empList" placeholder="Name" value="'+escapeHtml(s.name)+'" data-post="'+p.id+'" data-role="staffName" data-idx="'+i+'">'+
+        '<input class="staff-note" type="text" placeholder="Note (optional)" value="'+escapeHtml(s.note)+'" data-post="'+p.id+'" data-role="staffNote" data-idx="'+i+'">'+
+      '</div>'+
+      '<input class="staff-code mono" type="text" placeholder="Code" value="'+escapeHtml(s.code)+'" data-post="'+p.id+'" data-role="staffCode" data-idx="'+i+'">'+
+      '<button class="staff-rm" data-post="'+p.id+'" data-role="rmStaff" data-idx="'+i+'" title="Remove slot">✕</button>'+
+    '</div>';
+  }).join('');
+
+  const breaksHtml = p.breaks.map(function(b,i){
+    return '<div class="break-row">'+
+      '<input type="text" placeholder="Label" value="'+escapeHtml(b.label)+'" data-post="'+p.id+'" data-role="breakLabel" data-idx="'+i+'">'+
+      '<input type="text" placeholder="Value" value="'+escapeHtml(b.value)+'" data-post="'+p.id+'" data-role="breakValue" data-idx="'+i+'">'+
+      '<button class="break-rm" data-post="'+p.id+'" data-role="rmBreak" data-idx="'+i+'" title="Remove">✕</button>'+
+    '</div>';
+  }).join('');
+
+  const realNames = p.staff.map(function(s){ return s.name; }).filter(isRealName);
+  let statusClass='empty';
+  if(p.staff.length===0) statusClass='empty';
+  else if(realNames.length===p.staff.length) statusClass='full';
+  else if(realNames.length>0) statusClass='partial';
+
+  return (
+  '<div class="post" data-post="'+p.id+'" style="'+styleVars+'">'+
+    '<div class="post-head">'+
+      '<span class="status-dot '+statusClass+'"></span>'+
+      '<input class="post-name" type="text" value="'+escapeHtml(p.name)+'" data-post="'+p.id+'" data-role="postName">'+
+      '<select class="badge-select" data-post="'+p.id+'" data-role="badge">'+
+        '<option value="Radio Direct"'+(p.badge==='Radio Direct'?' selected':'')+'>Radio Direct</option>'+
+        '<option value="On Duty"'+(p.badge==='On Duty'?' selected':'')+'>On Duty</option>'+
+      '</select>'+
+      '<button class="post-del" data-post="'+p.id+'" data-role="delPost" title="Delete post">✕</button>'+
+    '</div>'+
+    '<div class="post-body">'+
+      '<div class="grid2">'+
+        '<div class="mini-field"><label>Shift time</label><input type="text" value="'+escapeHtml(p.time)+'" data-post="'+p.id+'" data-role="time" placeholder="e.g. 16:30 - 00:30"></div>'+
+        '<div class="mini-field"><label>Radio number</label><input type="text" value="'+escapeHtml(p.radio)+'" data-post="'+p.id+'" data-role="radio" placeholder="086 ..."></div>'+
+      '</div>'+
+      '<div class="staff-list">'+staffHtml+'</div>'+
+      '<div class="btnrow"><div class="row-small-btn" data-post="'+p.id+'" data-role="addStaff">+ Add name slot</div></div>'+
+      '<div class="break-list">'+breaksHtml+'</div>'+
+      '<div class="btnrow" style="margin-top:8px;margin-bottom:0;"><div class="row-small-btn" data-post="'+p.id+'" data-role="addBreak">+ Add break row</div></div>'+
+    '</div>'+
+  '</div>');
+}
+
+/* ============== DUPLICATE VALIDATION ============== */
+function getDuplicateNames(){
+  const counts = {};
+  allStaffEntries().forEach(function(s){
+    const n = (s.name||'').trim();
+    if(!isRealName(n)) return;
+    const key = n.toLowerCase();
+    counts[key] = (counts[key]||0)+1;
+  });
+  const dups = new Set();
+  Object.keys(counts).forEach(function(k){ if(counts[k]>1) dups.add(k); });
+  return dups;
+}
+function validateDuplicates(){
+  const dups = getDuplicateNames();
+  document.querySelectorAll('.staff-name').forEach(function(inp){
+    const v = inp.value.trim().toLowerCase();
+    const isDup = v && isRealName(inp.value) && dups.has(v);
+    inp.classList.toggle('dup', !!isDup);
+  });
+  renderSummary();
+}
+
+/* ============== EVENT HANDLING: POSTS ============== */
+postsContainer.addEventListener('input', function(e){
+  const t = e.target;
+  const postId = t.getAttribute('data-post');
+  if(!postId) return;
+  const p = findPost(postId);
+  if(!p) return;
+  const role = t.getAttribute('data-role');
+  const idx = t.getAttribute('data-idx');
+  if(role==='postName') p.name = t.value;
+  else if(role==='time') p.time = t.value;
+  else if(role==='radio') p.radio = t.value;
+  else if(role==='staffName'){ p.staff[idx].name = t.value; validateDuplicates(); }
+  else if(role==='staffCode'){ p.staff[idx].code = t.value; }
+  else if(role==='staffNote'){ p.staff[idx].note = t.value; }
+  else if(role==='breakLabel'){ p.breaks[idx].label = t.value; }
+  else if(role==='breakValue'){ p.breaks[idx].value = t.value; }
+  persist();
+});
+
+postsContainer.addEventListener('change', function(e){
+  const t = e.target;
+  if(t.getAttribute('data-role')==='badge'){
+    const p = findPost(t.getAttribute('data-post'));
+    if(p){ p.badge = t.value; persist(); }
+  }
+});
+
+postsContainer.addEventListener('click', function(e){
+  const t = e.target.closest('[data-role]');
+  if(!t) return;
+  const postId = t.getAttribute('data-post');
+  const role = t.getAttribute('data-role');
+  const idx = t.getAttribute('data-idx');
+  const p = postId ? findPost(postId) : null;
+  const sec = getCurrentSection();
+
+  if(role==='delPost'){
+    if(!confirm('Delete "'+p.name+'"?')) return;
+    sec.posts = sec.posts.filter(function(x){ return x.id!==postId; });
+    persist(); renderAll();
+  } else if(role==='addStaff'){
+    p.staff.push({name:'',code:'',note:''}); // no limit
+    persist(); renderAll();
+  } else if(role==='rmStaff'){
+    p.staff.splice(idx,1);
+    persist(); renderAll();
+  } else if(role==='addBreak'){
+    p.breaks.push({label:'Break Time', value:''});
+    persist(); renderAll();
+  } else if(role==='rmBreak'){
+    p.breaks.splice(idx,1);
+    persist(); renderAll();
+  }
+});
+
+/* ============== TABS ============== */
+document.getElementById('tabbar').addEventListener('click', function(e){
+  const delBtn = e.target.closest('[data-del-section]');
+  if(delBtn){
+    e.stopPropagation();
+    const id = delBtn.getAttribute('data-del-section');
+    const sec = getSection(id);
+    if(state.data.sections.length<=1){ toast('At least one tab is required'); return; }
+    if(!confirm('Delete the "'+sec.title+'" tab and its '+sec.posts.length+' post(s)?')) return;
+    state.data.sections = state.data.sections.filter(function(s){ return s.id!==id; });
+    if(state.section===id) state.section = state.data.sections[0].id;
+    persist(); renderAll();
+    return;
+  }
+  const addBtn = e.target.closest('#tabAddBtn');
+  if(addBtn){
+    document.getElementById('newSectionName').value='';
+    document.getElementById('addSectionOverlay').classList.add('show');
+    return;
+  }
+  const tab = e.target.closest('.tab');
+  if(tab){
+    state.section = tab.getAttribute('data-sec');
+    renderAll();
+  }
+});
+
+document.getElementById('addSectionClose').addEventListener('click', function(){ document.getElementById('addSectionOverlay').classList.remove('show'); });
+document.getElementById('createSectionBtn').addEventListener('click', function(){
+  const name = document.getElementById('newSectionName').value.trim();
+  if(!name){ toast('Enter a tab name'); return; }
+  const nextTheme = state.data.sections.length;
+  const id = 's'+Math.random().toString(36).slice(2,10);
+  state.data.sections.push(mkSection(id, name, nextTheme, []));
+  state.section = id;
+  persist();
+  document.getElementById('addSectionOverlay').classList.remove('show');
+  renderAll();
+  toast('Tab added');
+});
+
+/* ============== DATE NAV ============== */
+datePick.addEventListener('change', function(){ setDate(datePick.value); });
+document.getElementById('prevDay').addEventListener('click', function(){
+  const d = new Date(state.date+'T00:00:00'); d.setDate(d.getDate()-1);
+  setDate(d.toISOString().slice(0,10));
+});
+document.getElementById('nextDay').addEventListener('click', function(){
+  const d = new Date(state.date+'T00:00:00'); d.setDate(d.getDate()+1);
+  setDate(d.toISOString().slice(0,10));
+});
+document.getElementById('copyPrevBtn').addEventListener('click', function(){
+  const prev = findPreviousDate(state.date);
+  if(!prev){ toast('No earlier saved day found'); return; }
+  if(!confirm('Copy staff & break values from ' + prev + ' into ' + state.date + '? This overwrites today\'s entries.')) return;
+  const src = loadDay(prev);
+  state.data = JSON.parse(JSON.stringify(src));
+  state.data.sections.forEach(function(sec){
+    sec.posts.forEach(function(p){ p.id='p'+Math.random().toString(36).slice(2,10); });
+  });
+  if(!getSection(state.section)) state.section = state.data.sections[0].id;
+  persist(); renderAll();
+  toast('Copied from ' + prev);
+});
+
+/* ============== ADD POST ============== */
+document.getElementById('addPostBtn').addEventListener('click', function(){
+  const sec = getCurrentSection();
+  document.getElementById('addPostDesc').textContent = 'Added to ' + (sec?sec.title:'this tab') + '. You can edit every field afterwards.';
+  document.getElementById('newPostName').value='';
+  document.getElementById('addPostOverlay').classList.add('show');
+});
+document.getElementById('addPostClose').addEventListener('click', function(){ document.getElementById('addPostOverlay').classList.remove('show'); });
+document.getElementById('createPostBtn').addEventListener('click', function(){
+  const name = document.getElementById('newPostName').value.trim();
+  if(!name){ toast('Enter a post name'); return; }
+  const sec = getCurrentSection();
+  if(!sec){ toast('Create a tab first'); return; }
+  const p = mkPost(name,'Radio Direct','','',[['',''],['','']],[['Break Time',''],['Break Location','']]);
+  sec.posts.push(p);
+  persist();
+  document.getElementById('addPostOverlay').classList.remove('show');
+  renderAll();
+  toast('Post added');
+});
+
+/* ============== NAMES SHEET ============== */
+document.getElementById('openNamesBtn').addEventListener('click', function(){
+  renderNameList();
+  document.getElementById('namesOverlay').classList.add('show');
+});
+document.getElementById('namesClose').addEventListener('click', function(){ document.getElementById('namesOverlay').classList.remove('show'); });
+document.getElementById('addNameBtn').addEventListener('click', function(){
+  const inp = document.getElementById('newNameInput');
+  if(addEmployee(inp.value)){ inp.value=''; toast('Name added'); }
+});
+document.getElementById('newNameInput').addEventListener('keydown', function(e){
+  if(e.key==='Enter'){ document.getElementById('addNameBtn').click(); }
+});
+document.getElementById('nameList').addEventListener('click', function(e){
+  const btn = e.target.closest('[data-rm-name]');
+  if(!btn) return;
+  removeEmployee(btn.getAttribute('data-rm-name'));
+});
+document.getElementById('csvFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(){
+    const text = reader.result;
+    const names = text.split(/[\r\n,]+/).map(function(s){ return s.trim(); }).filter(Boolean)
+      .filter(function(s){ return s.toLowerCase()!=='name' && s.toLowerCase()!=='names'; });
+    let added=0;
+    names.forEach(function(n){ if(addEmployee(n)) added++; });
+    toast(added + ' name' + (added===1?'':'s') + ' imported');
+    e.target.value='';
+  };
+  reader.readAsText(file);
+});
+
+let toastTimer=null;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2200);
+}
+
+/* ============== PDF EXPORT ==============
+   Strategy: shrink font/line-height uniformly to fit everything on one A4
+   page, down to a floor where the main body font reaches 9pt. If content
+   still doesn't fit at 9pt, continue flowing onto additional A4 pages
+   at that fixed 9pt-floor size (never smaller). */
+document.getElementById('printBtn').addEventListener('click', function(){
+  const dups = getDuplicateNames();
+  if(dups.size>0){
+    if(!confirm('There are ' + dups.size + ' duplicate name(s) assigned to more than one tab/post. Generate the PDF anyway?')) return;
+  }
+  buildRosterPDF();
+});
+
+function buildRosterPDF(){
+  const jsPDF = window.jspdf.jsPDF;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+  const marginL = 8, marginR = 8, marginT = 8, marginB = 10, pageW = 210, pageH = 297;
+  const contentW = pageW - marginL - marginR;
+  const colGap = 2.5;
+  const colW = (contentW - colGap*2) / 3;
+  const headerH = 12; // space used by the top date/title band on page 1
+  const availableH1 = pageH - marginT - marginB - headerH;
+  const availableHNext = pageH - marginT - marginB - 6; // continuation pages: slimmer header
+
+  const dObj = new Date(state.date+'T00:00:00');
+  const dateHeader = dObj.toLocaleDateString('en-IE',{day:'2-digit',month:'2-digit',year:'2-digit'}) + '  ' + dObj.toLocaleDateString('en-IE',{weekday:'long'});
+
+  const sections = state.data.sections.filter(function(s){ return s.posts.length>0; });
+
+  // Base (scale = 1) sizes in pt for fonts, mm for line/box metrics.
+  // bodyFS is the reference used for the "minimum 9pt" floor.
+  const BASE = {
+    nameFS:12, badgeFS:8.5, timeFS:9.5, bodyFS:11, noteFS:8, breakFS:8.5,
+    nameLH:4.3, bodyLH:4.0, boxPad:3.6, rowGap:2.2, secHead:7
+  };
+  const MIN_BODY_FS = 9;
+  const MIN_SCALE = MIN_BODY_FS / BASE.bodyFS;
+  const MAX_SCALE = 1.15;
+
+  function combineBreaks(p){
+    return p.breaks
+      .filter(function(b){ return b.label || b.value; })
+      .map(function(b){ return (b.label||'').replace(/^Break( in Connolly)?/i,'').trim() + ': ' + (b.value || String.fromCharCode(8212)); })
+      .join('   |   ');
+  }
+
+  function measurePost(p, scale, w){
+    const nameFS = BASE.nameFS*scale, noteFS = BASE.noteFS*scale, breakFS = BASE.breakFS*scale;
+    doc.setFont('helvetica','bold'); doc.setFontSize(nameFS);
+    const nameLines = doc.splitTextToSize(p.name || 'Untitled', w - (5+22*scale));
+    let lines = Math.max(nameLines.length,1);
+    lines += 1; // time/radio row
+    if(p.staff.length===0){ lines += 1; }
+    p.staff.forEach(function(s){
+      lines += 1;
+      if(s.note){
+        doc.setFont('helvetica','italic'); doc.setFontSize(noteFS);
+        const nl = doc.splitTextToSize(s.note, w-4*scale);
+        lines += nl.length * 0.85;
+      }
+    });
+    const breakText = combineBreaks(p);
+    if(breakText){
+      doc.setFont('helvetica','normal'); doc.setFontSize(breakFS);
+      const bl = doc.splitTextToSize(breakText, w-4*scale);
+      lines += bl.length;
+    }
+    return lines;
+  }
+
+  function sectionRows(posts){
+    const rows = [];
+    for(let i=0;i<posts.length;i+=3) rows.push(posts.slice(i,i+3));
+    return rows;
+  }
+
+  function estimateTotalHeight(scale){
+    let total = 0;
+    sections.forEach(function(sec){
+      total += BASE.secHead*scale;
+      sectionRows(sec.posts).forEach(function(row){
+        const maxLines = Math.max.apply(null, row.map(function(p){ return measurePost(p, scale, colW); }));
+        const rowH = maxLines*BASE.bodyLH*scale + BASE.boxPad*scale;
+        total += rowH + BASE.rowGap*scale;
+      });
+    });
+    return total;
+  }
+
+  // Determine whether everything fits on ONE page within [MIN_SCALE, MAX_SCALE]
+  const base1 = estimateTotalHeight(1) || 1;
+  let fitScale = availableH1 / base1;
+  let scale, paginate;
+  if(fitScale >= MIN_SCALE){
+    scale = Math.min(fitScale, MAX_SCALE);
+    // refine (splitTextToSize isn't perfectly linear with scale)
+    for(let iter=0; iter<3; iter++){
+      const h = estimateTotalHeight(scale);
+      if(h > availableH1){ scale *= (availableH1/h)*0.98; }
+    }
+    scale = Math.max(MIN_SCALE, Math.min(scale, MAX_SCALE));
+    paginate = false;
+  } else {
+    scale = MIN_SCALE; // floor reached: allow overflow to additional pages
+    paginate = true;
+  }
+
+  function drawTopHeader(isContinuation){
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0,0,0);
+    doc.text(dateHeader + (isContinuation?' (cont.)':''), marginL, 8);
+    doc.setFontSize(13);
+    doc.text('DUTY ROSTER', pageW/2, 8, {align:'center'});
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    if(!isContinuation) doc.text('Ink friendly', pageW - marginR, 8, {align:'right'});
+    doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
+    doc.line(marginL, 10.5, pageW-marginR, 10.5);
+    return 14;
+  }
+  function drawFooter(){
+    doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(120,120,120);
+    doc.text('BVN Security - Duty Roster - Generated ' + new Date().toLocaleString('en-IE'), marginL, pageH-4);
+  }
+
+  function drawPost(p, x, yTop, w, h, scale){
+    const nameFS = BASE.nameFS*scale, badgeFS = BASE.badgeFS*scale, timeFS = BASE.timeFS*scale,
+          bodyFS = BASE.bodyFS*scale, noteFS = BASE.noteFS*scale, breakFS = BASE.breakFS*scale;
+    const lh = BASE.bodyLH*scale;
+    doc.setDrawColor(0,0,0); doc.setLineWidth(0.25);
+    doc.rect(x, yTop, w, h);
+    let cy = yTop + lh + 0.6*scale;
+    doc.setFont('helvetica','bold'); doc.setFontSize(nameFS); doc.setTextColor(0,0,0);
+    const nameLines = doc.splitTextToSize(p.name || 'Untitled', w - (5+20*scale));
+    doc.text(nameLines, x+1.6*scale, cy);
+    doc.setFont('helvetica','normal'); doc.setFontSize(badgeFS);
+    doc.text(p.badge || '', x+w-1.6*scale, cy, {align:'right'});
+    cy += Math.max(nameLines.length,1)*lh*0.92;
+
+    doc.setDrawColor(0,0,0); doc.setLineWidth(0.12);
+    doc.line(x, cy-lh*0.65, x+w, cy-lh*0.65);
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(timeFS);
+    doc.text(p.time || String.fromCharCode(8212), x+1.6*scale, cy);
+    if(p.radio){ doc.text(p.radio, x+w-1.6*scale, cy, {align:'right'}); }
+    cy += lh;
+    doc.setDrawColor(170,170,170); doc.setLineWidth(0.1);
+    doc.line(x, cy-lh*0.7, x+w, cy-lh*0.7);
+
+    if(p.staff.length===0){
+      doc.setFont('helvetica','italic'); doc.setFontSize(bodyFS*0.9); doc.setTextColor(90,90,90);
+      doc.text('No staff assigned', x+1.6*scale, cy);
+      cy += lh;
+      doc.setTextColor(0,0,0);
+    } else {
+      p.staff.forEach(function(s){
+        doc.setFont('helvetica','bold'); doc.setFontSize(bodyFS*0.86); doc.setTextColor(0,0,0);
+        const nm = s.name || String.fromCharCode(8212);
+        doc.text(nm, x+1.6*scale, cy);
+        if(s.code){
+          doc.setFont('helvetica','normal'); doc.setFontSize(badgeFS);
+          doc.text(s.code, x+w-1.6*scale, cy, {align:'right'});
+        }
+        cy += lh;
+        if(s.note){
+          doc.setFont('helvetica','italic'); doc.setFontSize(noteFS); doc.setTextColor(70,70,70);
+          const noteLines = doc.splitTextToSize(s.note, w-3.2*scale);
+          doc.text(noteLines, x+1.6*scale, cy);
+          cy += noteLines.length*lh*0.82;
+          doc.setTextColor(0,0,0);
+        }
+      });
+    }
+
+    const breakText = combineBreaks(p);
+    if(breakText){
+      doc.setDrawColor(170,170,170); doc.setLineWidth(0.1);
+      doc.line(x, cy-lh*0.65, x+w, cy-lh*0.65);
+      doc.setFont('helvetica','normal'); doc.setFontSize(breakFS); doc.setTextColor(0,0,0);
+      const bl = doc.splitTextToSize(breakText, w-3.2*scale);
+      doc.text(bl, x+1.6*scale, cy);
+      cy += bl.length*lh*0.92;
+    }
+  }
+
+  // ---- Draw, with page-overflow fallback regardless of `paginate` flag (safety net) ----
+  let pageIndex = 0;
+  let y = drawTopHeader(false);
+  let bottomLimit = pageH - marginB;
+
+  function newPage(){
+    drawFooter();
+    doc.addPage();
+    pageIndex++;
+    y = drawTopHeader(true);
+    bottomLimit = pageH - marginB;
+  }
+
+  sections.forEach(function(sec){
+    const rows = sectionRows(sec.posts);
+    // section header: ensure room for header + first row, else new page
+    const firstRowLines = rows.length ? Math.max.apply(null, rows[0].map(function(p){ return measurePost(p, scale, colW); })) : 0;
+    const firstRowH = firstRowLines*BASE.bodyLH*scale + BASE.boxPad*scale;
+    if(y + BASE.secHead*scale + firstRowH > bottomLimit) newPage();
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5*Math.min(scale,1.1)); doc.setTextColor(0,0,0);
+    doc.text(sec.title, pageW/2, y, {align:'center'});
+    doc.setDrawColor(0,0,0); doc.setLineWidth(0.2);
+    doc.line(marginL, y+1.3, pageW-marginR, y+1.3);
+    y += 4.2*scale;
+
+    rows.forEach(function(row){
+      const maxLines = Math.max.apply(null, row.map(function(p){ return measurePost(p, scale, colW); }));
+      const rowH = maxLines*BASE.bodyLH*scale + BASE.boxPad*scale;
+      if(y + rowH > bottomLimit) newPage();
+      row.forEach(function(p, idx){
+        const x = marginL + idx*(colW+colGap);
+        drawPost(p, x, y, colW, rowH, scale);
+      });
+      y += rowH + BASE.rowGap*scale;
+    });
+    y += 1.5*scale;
+  });
+
+  drawFooter();
+
+  if(pageIndex>0){
+    toast('PDF saved (' + (pageIndex+1) + ' pages — content needed the 9pt minimum)');
+  } else {
+    toast('PDF saved (1 page)');
+  }
+
+  const fname = 'Roster_' + state.date + '.pdf';
+  doc.save(fname);
+}
+
+/* ============== INIT ============== */
+renderEmployeeDatalist();
+setDate(todayStr());
+
+/* ============== ONBOARD PATROL LINK ============== */
+(function(){
+  var K_URL='roster_op_url', K_PIN='roster_op_pin';
+  function get(k){ try{return localStorage.getItem(k)||'';}catch(e){return '';} }
+  function set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }
+  document.getElementById('opSendBtn').addEventListener('click', async function(){
+    var url=get(K_URL), pin=get(K_PIN);
+    if(!url || !/^https:\/\/script\.google\.com\/.+\/exec/.test(url)){
+      url=(prompt('Onboard Patrol backend URL (ends with /exec):', url)||'').trim();
+      if(!url) return;
+      if(!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)){ toast('That is not an /exec URL'); return; }
+    }
+    if(!pin){
+      pin=(prompt('Supervisor PIN:','')||'').trim();
+      if(!pin) return;
+    }
+    var posts=[];
+    state.data.sections.forEach(function(sec){
+      sec.posts.forEach(function(p){
+        var staff=(p.staff||[]).filter(function(s){return isRealName(s.name);})
+          .map(function(s){return {name:s.name.trim(), code:(s.code||'').trim()};});
+        if(staff.length) posts.push({post:p.name||'', radio:p.radio||'', names:staff.map(function(s){return s.name;}), staff:staff});
+      });
+    });
+    if(!posts.length){ toast('No names to send'); return; }
+    toast('Sending…');
+    try{
+      await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({kind:'crew',pin:pin,date:state.date,posts:posts})});
+      var r=await fetch(url+'?format=crewcheck&pin='+encodeURIComponent(pin)+'&date='+encodeURIComponent(state.date));
+      var j=await r.json();
+      if(j.error){ set(K_PIN,''); toast('Error: '+j.error); return; }
+      set(K_URL,url); set(K_PIN,pin);
+      var rows=j.rows||[], tm={}, un=[];
+      rows.forEach(function(r){ if(r.team) tm[r.team]=1; else un.push(r.post||'?'); });
+      toast(Object.keys(tm).length+' teams matched'+(un.length?'; unmatched: '+un.join(', '):'')+' ('+state.date+')');
+    }catch(e){ toast('Could not confirm — check connection'); }
+  });
+})();
+</script>
+</body>
+</html>
