@@ -29,6 +29,16 @@ header h1 { color: #fff; font-size: 16px; margin: 0; letter-spacing: 0.3px; }
 #conflictBanner.show { display:flex; }
 #conflictBanner button { font-size:13px; font-weight:bold; padding:6px 14px; border-radius:4px; border:none; cursor:pointer; }
 #conflictBanner .reloadBtn { background:#fff; color:#842029; }
+#pinOverlay { display:none; position:fixed; inset:0; z-index:2000; background:#1f2937; align-items:center; justify-content:center; }
+#pinOverlay.show { display:flex; }
+#pinBox { background:#fff; border-radius:10px; padding:28px 26px; width:min(340px,90vw); text-align:center; }
+#pinBox h2 { margin:0 0 6px; font-size:20px; }
+#pinBox p { margin:0 0 14px; font-size:13px; color:#555; }
+#pinInput { width:100%; box-sizing:border-box; font-size:22px; letter-spacing:6px; text-align:center; padding:10px; border:1px solid #bbb; border-radius:6px; }
+#pinError { color:#b02a37; font-size:13px; min-height:18px; margin:8px 0; }
+#pinSubmit { width:100%; font-size:15px; font-weight:bold; padding:10px; border:none; border-radius:6px; background:#0d6efd; color:#fff; cursor:pointer; }
+#pinBox label { display:block; margin-top:12px; font-size:12px; color:#555; }
+#userLabel { font-size:12px; font-weight:bold; color:#fff; opacity:.85; }
 
 .exception-toggle { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; color: #fff; }
 .exception-toggle input { cursor: pointer; }
@@ -334,6 +344,7 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
   <h1>📅 Weekly Roster — By Name</h1>
   <div class="header-btns">
     <span id="saveIndicator" class="save-indicator saved">💾 Saved</span>
+    <span id="userLabel"></span>
     <label class="exception-toggle">
       <input type="checkbox" id="allowException"> Allow Double-Booking
     </label>
@@ -346,13 +357,25 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
     <button class="btn btn-green"  id="exportBtn">💾 Export</button>
     <button class="btn btn-green"  id="copyDataBtn">📋 Copy</button>
     <button class="btn btn-dark"   id="importBtn">📂 Import</button>
+    <button class="btn btn-dark"   id="loadFromBtn">📥 Load from…</button>
     <button class="btn btn-dark"   id="clearBtn">🗑 Clear Tab</button>
     <button class="btn btn-dark"   id="printBtn">🖨 Print</button>
     <button class="btn btn-orange" id="historyBtn">📜 History</button>
+    <button class="btn btn-dark"   id="lockBtn">🔒 Lock</button>
   </div>
 </header>
+<div id="pinOverlay">
+  <div id="pinBox">
+    <h2>Weekly Roster</h2>
+    <p>Enter your PIN to open the roster.</p>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+    <div id="pinError"></div>
+    <button id="pinSubmit">Open</button>
+    <label><input type="checkbox" id="pinRemember"> Remember me on this device</label>
+  </div>
+</div>
 <div id="conflictBanner">
-  <span>⚠️ This roster was saved from another laptop since you opened it. Your last change was <b>not</b> sent to the cloud, to avoid overwriting theirs.</span>
+  <span>⚠️ This roster was saved by <b id="conflictWho">another user</b> since you opened it. Your last change was <b>not</b> sent to the cloud, to avoid overwriting theirs.</span>
   <button class="reloadBtn" id="conflictReloadBtn">Reload latest (discard my unsaved change)</button>
 </div>
 
@@ -575,6 +598,10 @@ const MAX_HISTORY = 500;
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyfg7jiBEMr-2r3DmBiG2oFIUaNW8v5GkA3x7eEUB4MyZvkshL2Uenzl3A-DxVNYlyE/exec';
 let cloudVersion = null;   // the version number this browser last loaded/saved
 let cloudSavedAt = null;
+let rosterPin = null;      // PIN for this session (checked by the server on every request)
+let pinRemember = false;
+let currentUser = null;
+const PIN_KEY = 'weeklyRosterPin-v1';
 let cloudConflict = false; // true once a save has been rejected — blocks further saves until reload
 
 // ── ACTIVITY HISTORY ─────────────────────────────────────────────────────────
@@ -772,6 +799,21 @@ function computeWeeklyHours(tab, empName) {
 // Tabs are paired fortnightly by index: (0,1), (2,3)... On the second tab of a
 // pair, the total shown is the combined hours of both weeks in that pair.
 function pairStartIndex(tabIndex) { return tabIndex % 2 === 0 ? tabIndex : tabIndex - 1; }
+// A tab is the "second week" of a fortnight when its NAME says so ("Week 2",
+// "W 2", "(W 2) 11 - 17/Sept"...), no matter where it sits in the tab list.
+// A tab named Week 1 / W 1 is never a second week. Tabs with any other name
+// fall back to the old rule (every 2nd tab: 2nd, 4th, 6th...).
+function isSecondWeek(period, tabIndex) {
+  const t = period && period.tabs[tabIndex];
+  if (!t) return false;
+  const n = String(t.name || '');
+  // Default names made by the "+ tab" button: "Week 1 — 1" and "Week 1 — 2".
+  if (/week/i.test(n) && /[—–-]\s*2\s*$/.test(n)) return tabIndex > 0;
+  if (/week/i.test(n) && /[—–-]\s*1\s*$/.test(n)) return false;
+  if (/(?:^|[^a-z])(?:w|wk|week)\.?\s*0*2(?![0-9])/i.test(n)) return tabIndex > 0;
+  if (/(?:^|[^a-z])(?:w|wk|week)\.?\s*0*1(?![0-9])/i.test(n)) return false;
+  return tabIndex % 2 === 1;
+}
 // Shifts (title, colour, start/finish time, slot names) are shared as a
 // starting template across the app: a brand new tab or period is seeded with
 // whatever shifts already exist elsewhere, so you're not rebuilding a shift
@@ -805,8 +847,9 @@ function mirrorShiftDefsOntoTab(sourceTab, target) {
   if (target.data.length > sourceTab.data.length) target.data.length = sourceTab.data.length;
 }
 function computeCumulativeHours(period, tabIndex, empName) {
+  // This week + the tab right before it (Week 1).
   let total = 0;
-  for (let i = pairStartIndex(tabIndex); i <= tabIndex; i++) {
+  for (let i = Math.max(0, tabIndex - 1); i <= tabIndex; i++) {
     if (period.tabs[i]) total += computeWeeklyHours(period.tabs[i], empName);
   }
   return total;
@@ -968,14 +1011,48 @@ function saveData() {
     syncToCloud(payload);
   }, 600);
 }
-function syncToCloud(payload) {
-  if (!SCRIPT_URL || SCRIPT_URL.indexOf('PASTE_') === 0) { setSaveStatus('offline', '📴 No cloud endpoint set'); return; }
-  fetch(SCRIPT_URL, {
+function getStoredPin() {
+  try { return sessionStorage.getItem(PIN_KEY) || lsGet(PIN_KEY); } catch (e) { return lsGet(PIN_KEY); }
+}
+function clearStoredPin() {
+  try { sessionStorage.removeItem(PIN_KEY); } catch (e) {}
+  try { localStorage.removeItem(PIN_KEY); } catch (e) {}
+}
+function storePin(pin, remember) {
+  clearStoredPin();
+  if (remember) lsSet(PIN_KEY, pin); else { try { sessionStorage.setItem(PIN_KEY, pin); } catch (e) {} }
+}
+function askForPin(msg) {
+  return new Promise(resolve => {
+    const ov = document.getElementById('pinOverlay');
+    const inp = document.getElementById('pinInput');
+    const btn = document.getElementById('pinSubmit');
+    document.getElementById('pinError').textContent = msg || '';
+    inp.value = '';
+    ov.classList.add('show');
+    setTimeout(() => inp.focus(), 50);
+    const done = () => {
+      const v = inp.value.trim();
+      if (!v) return;
+      ov.classList.remove('show');
+      btn.onclick = null; inp.onkeydown = null;
+      resolve({ pin: v, remember: document.getElementById('pinRemember').checked });
+    };
+    btn.onclick = done;
+    inp.onkeydown = ev => { if (ev.key === 'Enter') done(); };
+  });
+}
+function cloudCall(body) {
+  return fetch(SCRIPT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids a CORS preflight to Apps Script
-    body: JSON.stringify({ expectedVersion: cloudVersion, data: payload })
-  })
-    .then(r => r.json())
+    body: JSON.stringify(Object.assign({ pin: rosterPin }, body))
+  }).then(r => r.json());
+}
+function syncToCloud(payload) {
+  if (!SCRIPT_URL || SCRIPT_URL.indexOf('PASTE_') === 0) { setSaveStatus('offline', '📴 No cloud endpoint set'); return; }
+  if (!rosterPin) { setSaveStatus('offline', '🔒 Locked — reload and enter your PIN'); return; }
+  cloudCall({ action: 'save', expectedVersion: cloudVersion, data: payload })
     .then(res => {
       if (res.ok) {
         cloudVersion = res.version;
@@ -984,13 +1061,19 @@ function syncToCloud(payload) {
       } else if (res.conflict) {
         cloudConflict = true;
         setSaveStatus('error', '⚠️ Not saved — conflict');
+        if (res.savedBy) document.getElementById('conflictWho').textContent = res.savedBy;
         document.getElementById('conflictBanner').classList.add('show');
+      } else if (res.error === 'auth' || res.error === 'locked') {
+        cloudConflict = true; // stop further save attempts until the page is reloaded
+        clearStoredPin();
+        setSaveStatus('error', '🔒 PIN rejected — reload and sign in');
       } else {
         setSaveStatus('error', '❌ Save failed');
       }
     })
     .catch(() => setSaveStatus('offline', '📴 Offline — saved locally only'));
 }
+document.getElementById('lockBtn').addEventListener('click', () => { clearStoredPin(); location.reload(); });
 document.getElementById('conflictReloadBtn').addEventListener('click', () => { location.reload(); });
 // Legacy migration helper: folds an old-format per-period employees list and
 // employeeMeta (which used to include availability) into the new global
@@ -1072,28 +1155,54 @@ function applyParsedState(parsed) {
 }
 async function loadData() {
   let parsed = null;
-  let cloudOk = false;
-  if (SCRIPT_URL && SCRIPT_URL.indexOf('PASTE_') !== 0) {
-    try {
-      const res = await fetch(SCRIPT_URL + '?t=' + Date.now(), { cache: 'no-store' });
-      const state = await res.json();
-      cloudVersion = state.version;
-      cloudSavedAt = state.savedAt;
-      if (state.data) { parsed = state.data; cloudOk = true; }
-    } catch (e) { /* offline or endpoint unreachable — fall back to the local copy below */ }
+  let reached = false;   // did the server accept our PIN and answer?
+  let cloudOk = false;   // ...and did it have roster data?
+  const cloudOn = SCRIPT_URL && SCRIPT_URL.indexOf('PASTE_') !== 0;
+  if (cloudOn) {
+    rosterPin = getStoredPin();
+    let hadStored = !!rosterPin;
+    pinRemember = !!lsGet(PIN_KEY);
+    let msg = '';
+    while (true) {
+      if (!rosterPin) {
+        const a = await askForPin(msg);
+        rosterPin = a.pin; pinRemember = a.remember;
+      }
+      try {
+        const res = await cloudCall({ action: 'load' });
+        if (res.ok) {
+          reached = true;
+          cloudVersion = res.version;
+          cloudSavedAt = res.savedAt;
+          currentUser = res.user;
+          storePin(rosterPin, pinRemember);
+          if (res.data) { parsed = res.data; cloudOk = true; }
+          break;
+        }
+        hadStored = false;
+        rosterPin = null; clearStoredPin();
+        msg = res.error === 'locked' ? 'Too many wrong PINs. Wait 10 minutes and try again.' : 'Incorrect PIN.';
+      } catch (e) {
+        if (hadStored) break; // signed in on this device before: carry on from the local copy, offline
+        rosterPin = null;
+        msg = "Can't reach the server. Check your connection and try again.";
+      }
+    }
   }
   if (!parsed) {
     try { const saved = lsGet(STORAGE_KEY); if (saved) parsed = JSON.parse(saved); } catch (e) { console.error('Local load error:', e); }
   }
   applyParsedState(parsed);
-  if (SCRIPT_URL && SCRIPT_URL.indexOf('PASTE_') !== 0) {
+  document.getElementById('userLabel').textContent = currentUser ? '👤 ' + currentUser : '';
+  if (cloudOn) {
     if (cloudOk) {
       setSaveStatus('saved', '☁️ Loaded');
-    } else {
-      // Cloud is empty (first run) or unreachable — push this browser's existing
-      // data up as the seed, or just note we're working offline for now.
-      setSaveStatus(parsed ? 'saving' : 'offline', parsed ? '⏳ Uploading existing roster…' : '📴 Offline — using local copy');
+    } else if (reached) {
+      // Cloud is empty (first run): push this browser's existing data up as the seed.
+      setSaveStatus(parsed ? 'saving' : 'saved', parsed ? '⏳ Uploading existing roster…' : '☁️ Ready');
       if (parsed) syncToCloud({ periods, statusTypes, categories, groups, employees, employeeMeta, activityHistory, version: '1.5' });
+    } else {
+      setSaveStatus('offline', '📴 Offline — using local copy');
     }
   } else {
     setSaveStatus('offline', '📴 No cloud endpoint set');
@@ -1183,12 +1292,54 @@ function addTab() {
   // new tab should start with the same shift set already in use elsewhere in
   // the app, rather than the generic blank template — only day labels and
   // assignments stay independent per tab.
-  const existing = allTabsEverywhere().find(t => t !== tab);
+  // Prefer the tab just before this one in the same period (Week 1 -> Week 2),
+  // so the shift times carry over; otherwise any other tab.
+  const existing = (tabs.length > 1 ? tabs[tabs.length - 2] : null) || allTabsEverywhere().find(t => t !== tab);
   if (existing) mirrorShiftDefsOntoTab(existing, tab);
   logActivity('tab-act', `Tab added: "${label}"`, currentPeriod().name);
   saveData(); render();
 }
 document.getElementById('addTabBtn').addEventListener('click', addTab);
+
+// ── LOAD FROM ANOTHER PERIOD / WEEK ─────────────────────────────────
+// Copies the shifts, who is on each shift and the statuses (leave, off...) of
+// any other week into the tab you are on. Day names/dates of this tab are kept.
+function openLoadFrom() {
+  const cur = currentTab();
+  let opts = '';
+  periods.forEach((per, pi) => per.tabs.forEach((t, ti) => {
+    if (per.tabs[ti] === cur) return;
+    opts += `<option value="${pi}|${ti}">${esc(per.name)} › ${esc(t.name)}</option>`;
+  }));
+  if (!opts) { alert('There is no other week to load from.'); return; }
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;';
+  ov.innerHTML = `<div style="background:#fff;border-radius:10px;padding:22px;width:min(420px,92vw);font-family:inherit;">
+    <h3 style="margin:0 0 6px;">Load from another week</h3>
+    <p style="margin:0 0 12px;font-size:13px;color:#555;">Copies the shifts and everyone's assignments into <b>${esc(currentPeriod().name)} › ${esc(cur.name)}</b>. What is in this tab now is replaced.</p>
+    <select id="lfSrc" style="width:100%;padding:8px;font-size:14px;">${opts}</select>
+    <label style="display:block;margin-top:10px;font-size:13px;"><input type="checkbox" id="lfStat" checked> Also copy statuses (holiday, off, sick...)</label>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn btn-dark" id="lfCancel">Cancel</button>
+      <button class="btn btn-green" id="lfGo">Load</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#lfCancel').onclick = () => ov.remove();
+  ov.querySelector('#lfGo').onclick = () => {
+    const [pi, ti] = ov.querySelector('#lfSrc').value.split('|').map(Number);
+    const src = periods[pi] && periods[pi].tabs[ti];
+    if (!src) { ov.remove(); return; }
+    const hasData = cur.data.some(sh => sh.slots.some(r => r.some(x => x))) || Object.keys(cur.statusAssignments || {}).length;
+    if (hasData && !confirm('This tab already has assignments. Replace them?')) return;
+    cur.data = JSON.parse(JSON.stringify(src.data));
+    cur.data.forEach(sh => { ensureDayLength(sh); ensureSlotNames(sh); ensureShiftTimes(sh); });
+    cur.statusAssignments = ov.querySelector('#lfStat').checked ? JSON.parse(JSON.stringify(src.statusAssignments || {})) : {};
+    logActivity('tab-act', `Loaded from "${periods[pi].name} › ${src.name}"`, `${currentPeriod().name} · ${cur.name}`);
+    saveData(); render(); ov.remove();
+  };
+}
+document.getElementById('loadFromBtn').addEventListener('click', openLoadFrom);
+
 
 // ── ASSIGNMENT LOOKUPS ────────────────────────────────────────────────────────
 function findAssignmentsInTab(tab, empName, dayIdx) {
@@ -1430,7 +1581,7 @@ function renderRoster() {
 
   const dayLabels = currentDayLabels();
   const period = currentPeriod();
-  const isWeek2 = activeTab % 2 === 1;
+  const isWeek2 = isSecondWeek(period, activeTab);
   let html = `<table class="roster"><thead><tr><th class="name-corner">Employee</th>`;
   DAYS.forEach((d, di) => {
     const colorClass = di===1 ? 'day-sat' : (di===2 ? 'day-sun' : '');
@@ -1579,7 +1730,7 @@ function renderEmployeesView() {
 
   const dayLabels = currentDayLabels();
   const period = currentPeriod();
-  const isWeek2 = activeTab % 2 === 1;
+  const isWeek2 = isSecondWeek(period, activeTab);
   view.innerHTML = emps.map(emp => {
     const rowsHtml = DAYS.map((_, di) => {
       const day = dayLabels[di];
@@ -1633,7 +1784,7 @@ function renderEmployeesView() {
         lines.push(`${day}: ${valText}`);
       });
       const weekHrs = computeWeeklyHours(tab, emp);
-      if (activeTab % 2 === 1) {
+      if (isSecondWeek(currentPeriod(), activeTab)) {
         const cumHrs = computeCumulativeHours(currentPeriod(), activeTab, emp);
         lines.push(`Hours: ${fmtHours(weekHrs)} this week (${fmtHours(cumHrs)} fortnight)`);
       } else {
@@ -2263,7 +2414,28 @@ function renderCategoryLegend() {
     `<span class="legend-chip"><span class="cat-dot" style="background:${esc(c.color)}"></span>${esc(c.label)}</span>`
   ).join('');
 }
+// AUTO times: a shift that has no start AND no finish time takes them from the
+// most recent earlier roster (previous tab, then earlier periods) that has a
+// shift with the same title and both times set. So a new week starts with the
+// hours of the previous weeks, and the 2-week total works with no extra typing.
+function autoFillShiftTimes() {
+  const all = allTabsEverywhere();
+  let changed = false;
+  for (let ti = 0; ti < all.length; ti++) {
+    all[ti].data.forEach(shift => {
+      if (shift.startTime || shift.finishTime) return;
+      const key = String(shift.title || '').trim().toLowerCase();
+      if (!key) return;
+      for (let tj = ti - 1; tj >= 0; tj--) {
+        const src = all[tj].data.find(x => String(x.title || '').trim().toLowerCase() === key && x.startTime && x.finishTime);
+        if (src) { shift.startTime = src.startTime; shift.finishTime = src.finishTime; changed = true; break; }
+      }
+    });
+  }
+  return changed;
+}
 function render() {
+  if (autoFillShiftTimes()) saveData();
   renderPeriodBar(); renderTabBar(); renderCategoryLegend();
   const rv = document.getElementById('rosterView');
   const sv = document.getElementById('shiftsView');
