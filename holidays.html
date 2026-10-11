@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holiday Manager — Connolly Site</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 13px; background: #f8f9fa; color: #333; }
+
+header { background: #1a1a2e; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+header h1 { color: #fff; font-size: 16px; margin: 0; letter-spacing: 0.3px; }
+.header-btns { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: opacity .15s; }
+.btn:hover { opacity: 0.85; }
+.btn-red    { background: #dc3545; color: #fff; }
+.btn-blue   { background: #0d6efd; color: #fff; }
+.btn-green  { background: #198754; color: #fff; }
+.btn-dark   { background: #e9ecef; color: #495057; border: 1px solid #ced4da; }
+.btn-orange { background: #fd7e14; color: #fff; }
+.btn-purple { background: #6f42c1; color: #fff; }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+.btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+.save-indicator { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+.save-indicator.saving { background: #fff3cd; color: #856404; }
+.save-indicator.saved  { background: #d1e7dd; color: #0f5132; }
+.save-indicator.error  { background: #f8d7da; color: #842029; }
+
+#navBar { display: flex; align-items: stretch; background: #16213e; border-bottom: 3px solid #0d6efd; overflow-x: auto; min-height: 38px; }
+.nav-item { display: flex; align-items: center; gap: 5px; padding: 0 18px; cursor: pointer; white-space: nowrap; color: #8899bb; font-size: 12px; font-weight: bold; border-bottom: 3px solid transparent; margin-bottom: -3px; transition: background .15s; }
+.nav-item:hover { background: rgba(255,255,255,0.06); color: #ccd; }
+.nav-item.active { background: #f8f9fa; color: #0d6efd; border-bottom-color: #f8f9fa; }
+
+#contentArea { height: calc(100vh - 76px); overflow: auto; padding: 15px; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── Toolbar ── */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.toolbar .spacer { flex: 1; }
+.month-nav { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #ced4da; border-radius: 5px; padding: 4px 6px; }
+.month-nav button { background: #e9ecef; border: none; border-radius: 4px; width: 26px; height: 26px; cursor: pointer; font-weight: bold; font-size: 14px; color: #495057; }
+.month-nav button:hover { background: #dee2e6; }
+.month-nav .month-label { font-weight: bold; font-size: 14px; min-width: 140px; text-align: center; color: #212529; }
+select, input[type=text], input[type=number], input[type=date] { font-family: inherit; font-size: 12px; padding: 5px 7px; border: 1px solid #ced4da; border-radius: 4px; }
+.intro-note { background: #fff; border: 1px solid #dee2e6; border-left: 4px solid #0d6efd; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #495057; margin-bottom: 12px; }
+
+/* ── Calendar grid ── */
+.cal-scroll { overflow: auto; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 4px; max-height: calc(100vh - 190px); }
+table.cal { border-collapse: separate; border-spacing: 0; }
+table.cal th, table.cal td { border-right: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef; }
+th.corner { position: sticky; left: 0; top: 0; z-index: 6; background: #f1f3f5; min-width: 175px; max-width: 175px; padding: 6px 8px; text-align: left; color: #495057; }
+th.day-th { position: sticky; top: 0; z-index: 5; background: #16213e; color: #fff; min-width: 34px; max-width: 34px; padding: 4px 2px; text-align: center; font-size: 10px; font-weight: bold; }
+th.day-th .dnum { display: block; font-size: 12px; }
+th.day-th.wk-sat { background: #0d6efd; }
+th.day-th.wk-sun { background: #7a1224; }
+th.day-th.wk-start { border-left: 2px solid #fd7e14; }
+th.day-th.today-col { outline: 2px solid #ffc107; outline-offset: -2px; }
+tr.cov-row td { position: sticky; top: 30px; z-index: 4; }
+td.cov-cell { text-align: center; font-size: 10px; font-weight: bold; padding: 3px 1px; cursor: default; }
+td.cov-cell.safe  { background: #d1e7dd; color: #0f5132; }
+td.cov-cell.tight { background: #fff3cd; color: #856404; }
+td.cov-cell.over  { background: #f8d7da; color: #842029; }
+td.cov-corner { position: sticky; left: 0; top: 30px; z-index: 6; background: #f1f3f5; font-size: 10px; color: #6c757d; padding: 4px 8px; font-weight: bold; }
+td.day-cell { min-width: 34px; max-width: 34px; height: 26px; text-align: center; cursor: pointer; font-size: 10px; color: #adb5bd; }
+td.day-cell:hover { background: #f0f6ff; }
+td.day-cell.wk-sat, td.day-cell.wk-sun { background: rgba(13,110,253,0.04); }
+td.day-cell.wk-start { border-left: 2px solid #fd7e14; }
+td.day-cell.holiday { background: #fd7e14; color: #fff; font-weight: bold; }
+td.day-cell.holiday:hover { background: #e56c00; }
+td.emp-cell { position: sticky; left: 0; z-index: 2; background: #f8f9fa; padding: 5px 8px; font-weight: bold; font-size: 12px; white-space: nowrap; cursor: pointer; border-right: 2px solid #ced4da; }
+td.emp-cell:hover { background: #eef4ff; color: #0d6efd; }
+td.emp-cell .emp-sub { display: block; font-weight: normal; font-size: 9px; color: #6c757d; }
+tr.group-row td { position: sticky; left: 0; background: #16213e; color: #8899bb; font-size: 10px; font-weight: bold; padding: 4px 8px; text-transform: uppercase; letter-spacing: 0.5px; z-index: 3; }
+
+/* ── Tables (employees / shifts) ── */
+table.mgr-table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-radius: 4px; overflow: hidden; }
+table.mgr-table th { background: #16213e; color: #fff; text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+table.mgr-table td { padding: 6px 10px; border-bottom: 1px solid #eee; font-size: 12px; vertical-align: middle; }
+table.mgr-table tr:hover td { background: #f8f9fa; }
+table.mgr-table input[type=text], table.mgr-table input[type=number] { width: 100%; border: 1px solid transparent; background: transparent; padding: 3px 5px; border-radius: 3px; }
+table.mgr-table input[type=text]:hover, table.mgr-table input[type=number]:hover { border-color: #ced4da; background: #fff; }
+table.mgr-table input[type=text]:focus, table.mgr-table input[type=number]:focus { border-color: #0d6efd; background: #fff; outline: none; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: bold; color: #fff; }
+.badge-missing { background: #f8d7da; color: #842029; }
+.del-row { color: #dc3545; cursor: pointer; font-weight: bold; font-size: 13px; }
+.del-row:hover { opacity: 0.6; }
+.day-toggle-set { display: flex; gap: 3px; }
+.day-toggle { width: 22px; height: 22px; border-radius: 3px; border: 1px solid #ced4da; background: #fff; color: #6c757d; font-size: 9px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.day-toggle.on { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+.color-swatch-input { width: 30px; height: 24px; border: 1px solid #ced4da; border-radius: 4px; cursor: pointer; padding: 0; }
+
+/* ── Modals ── */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 50; align-items: flex-start; justify-content: center; overflow: auto; padding: 30px 10px; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: #fff; border-radius: 8px; width: 100%; max-width: 480px; box-shadow: 0 4px 24px rgba(0,0,0,0.25); }
+.modal-box.wide { max-width: 640px; }
+.modal-head { background: #1a1a2e; color: #fff; padding: 12px 16px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; }
+.modal-head h3 { font-size: 14px; margin: 0; }
+.modal-close { cursor: pointer; color: #aab; font-size: 18px; line-height: 1; background: none; border: none; }
+.modal-close:hover { color: #fff; }
+.modal-body { padding: 16px; max-height: 70vh; overflow: auto; }
+.modal-foot { padding: 12px 16px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 8px; }
+.form-row { margin-bottom: 12px; }
+.form-row label { display: block; font-size: 11px; font-weight: bold; color: #495057; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+.form-row input, .form-row select, .form-row textarea { width: 100%; }
+.form-row-2 { display: flex; gap: 10px; }
+.form-row-2 > div { flex: 1; }
+
+.preview-box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 5px; padding: 10px 12px; margin-top: 6px; font-size: 12px; }
+.preview-summary { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.preview-stat { text-align: center; }
+.preview-stat .num { font-size: 18px; font-weight: bold; display: block; }
+.preview-stat .lbl { font-size: 9px; color: #6c757d; text-transform: uppercase; }
+.preview-stat.warn .num { color: #dc3545; }
+.preview-stat.ok .num { color: #198754; }
+.problem-list { list-style: none; margin-top: 6px; max-height: 130px; overflow: auto; }
+.problem-list li { padding: 3px 0; border-bottom: 1px dashed #e9ecef; display: flex; justify-content: space-between; }
+.problem-list li .pd-safe { font-weight: bold; color: #dc3545; }
+.week-hours-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #e9ecef; }
+.week-hours-row .short { color: #dc3545; font-weight: bold; }
+.week-hours-row .ok { color: #198754; font-weight: bold; }
+.hint-text { font-size: 11px; color: #6c757d; margin-top: 4px; }
+
+textarea.import-paste { width: 100%; height: 140px; font-family: monospace; font-size: 11px; border: 1px solid #ced4da; border-radius: 4px; padding: 8px; }
+.import-summary { background: #f8f9fa; border-radius: 5px; padding: 10px 12px; font-size: 12px; margin-top: 10px; }
+.import-summary b { color: #0d6efd; }
+
+.empty-state { text-align: center; color: #adb5bd; padding: 40px 20px; font-size: 13px; }
+
+.save-indicator.offline { background: #e2e3e5; color: #41464b; }
+#userLabel { font-size: 12px; font-weight: bold; color: #fff; opacity: .85; }
+#cloudBanner { display: none; position: sticky; top: 0; z-index: 500; background: #842029; color: #fff; padding: 12px 16px; font-size: 14px; align-items: center; justify-content: space-between; gap: 12px; }
+#cloudBanner.show { display: flex; }
+#cloudBanner button { font-size: 13px; font-weight: bold; padding: 6px 14px; border-radius: 4px; border: none; cursor: pointer; background: #fff; color: #842029; }
+#pinOverlay { display: none; position: fixed; inset: 0; z-index: 2000; background: #1f2937; align-items: center; justify-content: center; }
+#pinOverlay.show { display: flex; }
+#pinBox { background: #fff; border-radius: 10px; padding: 28px 26px; width: min(360px, 90vw); text-align: center; }
+#pinBox h2 { margin: 0 0 6px; font-size: 20px; }
+#pinBox p { margin: 0 0 14px; font-size: 13px; color: #555; }
+#pinBox input[type=password], #pinBox input[type=text] { width: 100%; box-sizing: border-box; font-size: 16px; padding: 10px; border: 1px solid #bbb; border-radius: 6px; margin-bottom: 8px; }
+#pinInput { font-size: 22px !important; letter-spacing: 6px; text-align: center; }
+#pinError { color: #b02a37; font-size: 13px; min-height: 18px; margin: 4px 0 8px; }
+#pinSubmit { width: 100%; font-size: 15px; font-weight: bold; padding: 10px; border: none; border-radius: 6px; background: #0d6efd; color: #fff; cursor: pointer; }
+#pinBox label { display: block; margin-top: 12px; font-size: 12px; color: #555; }
+</style>
+</head>
+<body>
+<div id="cloudBanner"><span>⚠️ This data was saved by <b id="cloudWho">another user</b> since you opened it. Your last change was not sent, to avoid overwriting theirs.</span><button id="cloudReloadBtn">Reload latest (discard my unsaved change)</button></div>
+<div id="pinOverlay">
+  <div id="pinBox">
+    <h2>Holiday Manager</h2>
+    <p>Enter your PIN to open it.</p>
+    <input id="urlInput" type="text" placeholder="Backend link (ends with /exec)" autocomplete="off" style="display:none;">
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+    <div id="pinError"></div>
+    <button id="pinSubmit">Open</button>
+    <label><input type="checkbox" id="pinRemember" checked> Remember me on this device</label>
+  </div>
+</div>
+
+<header>
+  <h1>🏖 Holiday Manager — Connolly Site</h1>
+  <div class="header-btns">
+    <span id="userLabel"></span>
+    <span class="save-indicator saved" id="saveIndicator">💾 Saved</span>
+    <button class="btn btn-dark" id="lockBtn">🔒 Lock</button>
+    <button class="btn btn-purple" id="importRosterBtn">⇩ Import Roster Data</button>
+    <button class="btn btn-dark" id="exportBackupBtn">Export Backup</button>
+    <button class="btn btn-dark" id="importBackupBtn">Import Backup</button>
+  </div>
+</header>
+
+<nav id="navBar">
+  <div class="nav-item active" data-view="calendarView">📅 Calendar</div>
+  <div class="nav-item" data-view="employeesView">👤 Employees</div>
+  <div class="nav-item" data-view="shiftsView">🛠 Shifts</div>
+</nav>
+
+<div id="contentArea">
+
+  <!-- ═══ CALENDAR VIEW ═══ -->
+  <div class="view active" id="calendarView">
+    <div class="intro-note">
+      Click a <strong>staff name</strong> to add or edit a holiday date range for that person. Click an existing
+      orange cell to edit or remove it. The <strong>coverage row</strong> under the dates shows whether the
+      staff still available that day — and eligible for the posts that need filling — can actually cover
+      everything: green/amber = spare capacity, red = a real shortfall (some post can't be filled by anyone
+      available, even in the best arrangement). Staff with no weekly hours cap set, or on holiday, aren't
+      counted as available. Weeks run <strong>Friday → Thursday</strong>, matching the roster.
+    </div>
+    <div class="toolbar">
+      <div class="month-nav">
+        <button id="prevMonthBtn">‹</button>
+        <span class="month-label" id="monthLabel">—</span>
+        <button id="nextMonthBtn">›</button>
+      </div>
+      <button class="btn btn-dark btn-sm" id="todayBtn">Today</button>
+      <select id="groupFilter"></select>
+      <input type="text" id="empSearch" placeholder="Search staff…" style="width:160px;">
+      <div class="spacer"></div>
+      <span class="hint-text" id="staffCountLabel"></span>
+    </div>
+    <div class="cal-scroll">
+      <table class="cal" id="calTable"></table>
+    </div>
+  </div>
+
+  <!-- ═══ EMPLOYEES VIEW ═══ -->
+  <div class="view" id="employeesView">
+    <div class="intro-note">
+      Staff imported from a Roster export keep their employee number, category, and group in sync on re-import.
+      The <strong>weekly hours cap</strong> is owned by this app — leave it blank and that person won't be
+      counted as available capacity at all. <strong>Eligible shifts</strong> left blank means they can cover
+      any post; restrict it to only the posts they're actually able to work.
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-green btn-sm" id="addEmpBtn">+ Add Staff</button>
+      <input type="text" id="empMgrSearch" placeholder="Search staff…" style="width:200px;">
+      <div class="spacer"></div>
+      <span class="hint-text" id="empCountLabel"></span>
+    </div>
+    <table class="mgr-table" id="empTable">
+      <thead><tr>
+        <th style="width:18%">Name</th><th style="width:10%">Emp No</th><th style="width:12%">Category</th>
+        <th style="width:12%">Group</th><th style="width:15%">Weekly Hours Cap</th><th style="width:18%">Eligible Shifts</th><th></th>
+      </tr></thead>
+      <tbody id="empTableBody"></tbody>
+    </table>
+
+  </div>
+
+  <!-- ═══ SHIFTS VIEW ═══ -->
+  <div class="view" id="shiftsView">
+    <div class="intro-note">
+      These are the posts that need filling — used to work out how many staff are required each day. Days run
+      <strong>Fri · Sat · Sun · Mon · Tue · Wed · Thu</strong>. Toggle which days a shift is active and how many
+      people it needs at once (slots). Imported shifts start from the roster's own "Holiday calc" setting
+      (daily / weekend-only / event-only are skipped as manual / bookkeeping rows excluded).
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-green btn-sm" id="addShiftBtn">+ Add Shift</button>
+      <div class="spacer"></div>
+      <span class="hint-text" id="shiftCountLabel"></span>
+    </div>
+    <table class="mgr-table" id="shiftTable">
+      <thead><tr>
+        <th style="width:4%"></th><th style="width:20%">Title</th><th style="width:10%">Start</th><th style="width:10%">Finish</th>
+        <th style="width:8%">Slots</th><th style="width:8%">Hrs/day</th><th style="width:32%">Active Days (Fri→Thu)</th><th></th>
+      </tr></thead>
+      <tbody id="shiftTableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ═══ HOLIDAY MODAL ═══ -->
+<div class="modal-overlay" id="holModal">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <h3 id="holModalTitle">Add Holiday</h3>
+      <button class="modal-close" data-close="holModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Staff Member</label><div id="holEmpName" style="font-weight:bold;font-size:14px;"></div></div>
+      <div class="form-row-2">
+        <div class="form-row"><label>Start Date</label><input type="date" id="holStart"></div>
+        <div class="form-row"><label>End Date</label><input type="date" id="holEnd"></div>
+      </div>
+      <div class="form-row"><label>Note (optional)</label><input type="text" id="holNote" placeholder="e.g. Annual leave, approved by…"></div>
+      <div id="holPreview"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-red" id="holDeleteBtn" style="display:none;margin-right:auto;">Delete</button>
+      <button class="btn btn-dark" data-close="holModal">Cancel</button>
+      <button class="btn btn-green" id="holSaveBtn">Approve &amp; Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ IMPORT ROSTER MODAL ═══ -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <h3>Import Roster Data</h3>
+      <button class="modal-close" data-close="importModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint-text" style="margin-bottom:8px;">Choose the Roster app's exported JSON file (Export Data), or paste its contents below. This brings in staff (name / emp no / category / group) and shifts (as required-coverage posts). Your holiday entries and hours caps are never touched by this.</p>
+      <input type="file" id="importFileInput" accept="application/json" style="margin-bottom:8px;">
+      <textarea class="import-paste" id="importPasteArea" placeholder="…or paste roster JSON here"></textarea>
+      <div id="importSummary"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-dark" data-close="importModal">Cancel</button>
+      <button class="btn btn-purple" id="importRunBtn">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ IMPORT BACKUP MODAL ═══ -->
+<div class="modal-overlay" id="importBackupModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Import Backup</h3>
+      <button class="modal-close" data-close="importBackupModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint-text" style="margin-bottom:8px;">This replaces everything currently in Holiday Manager with the contents of the backup file. Export a fresh backup first if you want to keep the current data.</p>
+      <input type="file" id="importBackupFileInput" accept="application/json">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-dark" data-close="importBackupModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ELIGIBLE SHIFTS MODAL ═══ -->
+<div class="modal-overlay" id="eligModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Eligible Shifts</h3>
+      <button class="modal-close" data-close="eligModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Staff Member</label><div id="eligModalName" style="font-weight:bold;font-size:14px;"></div></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:bold;margin-bottom:8px;">
+        <input type="checkbox" id="eligAllToggle"> Can work any shift (leave unrestricted)
+      </label>
+      <div id="eligShiftList" style="max-height:280px;overflow:auto;border-top:1px solid #eee;padding-top:6px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-dark" data-close="eligModal">Cancel</button>
+      <button class="btn btn-green" id="eligSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WEEKLY HOURS OVERRIDE MODAL ═══ -->
+<div class="modal-overlay" id="weekHoursModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Weekly Hours Override</h3>
+      <button class="modal-close" data-close="weekHoursModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row"><label>Staff Member</label><div id="weekModalName" style="font-weight:bold;font-size:14px;"></div></div>
+      <p class="hint-text" style="margin-bottom:10px;">Default cap: <strong id="weekModalDefault"></strong>. An override below only applies to that one Friday→Thursday week, unless you tick "apply going forward".</p>
+      <div class="form-row-2">
+        <div class="form-row"><label>Any date in the week</label><input type="date" id="weekOverrideDate"></div>
+        <div class="form-row"><label>Hours cap this week</label><input type="number" min="0" max="80" id="weekOverrideValue" placeholder="blank = not counted"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:10px;">
+        <input type="checkbox" id="weekApplyForward"> Also make this the new default going forward
+      </label>
+      <button class="btn btn-blue btn-sm" id="weekOverrideSaveBtn" type="button">Set this week</button>
+      <div style="margin-top:14px;font-weight:bold;font-size:11px;text-transform:uppercase;color:#495057;">Existing overrides</div>
+      <div id="weekOverridesList" style="margin-top:4px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-dark" data-close="weekHoursModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// DATA MODEL
+// employees: [{ name, empNo, category, group, hoursCap }]   hoursCap: number|null
+// shifts:    [{ id, title, color, startTime, finishTime, slots, activeDays[7] }]  activeDays index 0=Fri..6=Thu
+// holidays:  [{ id, name, start:'YYYY-MM-DD', end:'YYYY-MM-DD', note }]
+// ══════════════════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'holidayManagerV1';
+const DAYS = ['Fri','Sat','Sun','Mon','Tue','Wed','Thu']; // same ordering as the Roster app
+let employees = [];
+let shifts = [];
+let holidays = [];
+let viewYear, viewMonth; // viewMonth: 0-11
+let activeView = 'calendarView';
+let editingHolidayId = null;
+let editingHolidayEmpName = null;
+
+function uid() { return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function esc(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function lsSet(k,v){ try { localStorage.setItem(k,v); return true; } catch(e){ return false; } }
+
+// ── Date utilities (all dates handled as local, no timezone drift) ─────────
+function fmtISO(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseISO(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function dowIndex(d) { return (d.getDay()+2)%7; } // JS 0=Sun..6=Sat -> our 0=Fri..6=Thu
+function daysInMonth(y,m) { return new Date(y, m+1, 0).getDate(); }
+function isToday(d) { const t=new Date(); return d.getFullYear()===t.getFullYear() && d.getMonth()===t.getMonth() && d.getDate()===t.getDate(); }
+function weekStartFriday(d) { const back = dowIndex(d); return addDays(d, -back); }
+function rangeOverlapsDate(startS, endS, dateS) { return dateS >= startS && dateS <= endS; }
+
+// ══════════════════════════════════════════════════════════════════════════
+// PERSISTENCE
+// ══════════════════════════════════════════════════════════════════════════
+let saveTimer = null, saveTimerPending = false;
+function setSaveStatus(status, msg) {
+  const el = document.getElementById('saveIndicator');
+  el.className = 'save-indicator ' + status;
+  el.textContent = msg;
+}
+
+// ── Cloud (Google Apps Script + Drive file, PIN protected) ──────────────
+const URL_KEY = 'holiday_cloud_url', PIN_KEY = 'holiday_cloud_pin';
+let cloudUrl = lsGet(URL_KEY) || '';
+let holidayPin = null, cloudVersion = null, currentUser = null;
+let cloudConflict = false, cloudInFlight = false, cloudQueued = null;
+function cloudPayload() { return { employees, shifts, holidays, version: '1.0' }; }
+function getStoredPin() { try { return sessionStorage.getItem(PIN_KEY) || lsGet(PIN_KEY); } catch (e) { return lsGet(PIN_KEY); } }
+function clearStoredPin() { try { sessionStorage.removeItem(PIN_KEY); } catch (e) {} try { localStorage.removeItem(PIN_KEY); } catch (e) {} }
+function storePin(pin, remember) { clearStoredPin(); if (remember) lsSet(PIN_KEY, pin); else { try { sessionStorage.setItem(PIN_KEY, pin); } catch (e) {} } }
+function cloudCall(body) {
+  return fetch(cloudUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ pin: holidayPin }, body)) }).then(r => r.json());
+}
+const URL_OK = u => /^https:\/\/script\.google\.com\/.+\/exec/.test(u);
+function askForPin(msg, needUrl) {
+  return new Promise(resolve => {
+    const ov = document.getElementById('pinOverlay'), inp = document.getElementById('pinInput'), btn = document.getElementById('pinSubmit'), url = document.getElementById('urlInput');
+    document.getElementById('pinError').textContent = msg || '';
+    url.style.display = needUrl ? 'block' : 'none';
+    if (needUrl) url.value = cloudUrl;
+    inp.value = '';
+    ov.classList.add('show');
+    setTimeout(() => (needUrl && !url.value ? url : inp).focus(), 50);
+    const done = () => {
+      const v = inp.value.trim(), u = url.value.trim();
+      if (needUrl && !URL_OK(u)) { document.getElementById('pinError').textContent = 'Paste the backend link that ends with /exec'; return; }
+      if (!v) return;
+      ov.classList.remove('show');
+      btn.onclick = null; inp.onkeydown = null;
+      resolve({ pin: v, url: needUrl ? u : null, remember: document.getElementById('pinRemember').checked });
+    };
+    btn.onclick = done;
+    inp.onkeydown = ev => { if (ev.key === 'Enter') done(); };
+  });
+}
+function saveData() {
+  setSaveStatus('saving', '⏳ Saving…');
+  clearTimeout(saveTimer);
+  saveTimerPending = true;
+  saveTimer = setTimeout(() => {
+    saveTimerPending = false;
+    lsSet(STORAGE_KEY, JSON.stringify({ employees, shifts, holidays, viewYear, viewMonth, version: '1.0' })); // local copy, always kept
+    syncToCloud(cloudPayload());
+  }, 400);
+}
+// One save at a time. If a newer version was saved by YOU (another tab, or a slow
+// previous answer) your latest data is saved on top. Only a DIFFERENT user saving
+// in between shows the warning.
+function syncToCloud(payload) {
+  if (!cloudUrl) { setSaveStatus('offline', '📴 Saved on this device only'); return; }
+  if (!holidayPin) { setSaveStatus('offline', '🔒 Locked — reload and enter your PIN'); return; }
+  if (cloudConflict) return;
+  if (cloudInFlight) { cloudQueued = payload; return; }
+  cloudInFlight = true;
+  const finish = () => { cloudInFlight = false; if (cloudQueued && !cloudConflict) { const q = cloudQueued; cloudQueued = null; syncToCloud(q); } };
+  const attempt = (tries) => {
+    cloudCall({ action: 'save', expectedVersion: cloudVersion, data: payload })
+      .then(res => {
+        if (res.ok) { cloudVersion = res.version; setSaveStatus('saved', '☁️ Saved'); finish(); }
+        else if (res.conflict && res.savedBy && currentUser && res.savedBy === currentUser && tries < 3 && typeof res.currentVersion === 'number') { cloudVersion = res.currentVersion; attempt(tries + 1); }
+        else if (res.conflict) { cloudConflict = true; setSaveStatus('error', '⚠️ Not saved — conflict'); if (res.savedBy) document.getElementById('cloudWho').textContent = res.savedBy; document.getElementById('cloudBanner').classList.add('show'); cloudInFlight = false; }
+        else if (res.error === 'auth') { cloudConflict = true; clearStoredPin(); setSaveStatus('error', '🔒 PIN rejected — reload and sign in'); cloudInFlight = false; }
+        else { setSaveStatus('error', '❌ Save failed'); finish(); }
+      })
+      .catch(() => { setSaveStatus('offline', '📴 Offline — saved on this device only'); finish(); });
+  };
+  attempt(0);
+}
+document.getElementById('lockBtn').addEventListener('click', () => { clearStoredPin(); location.reload(); });
+document.getElementById('cloudReloadBtn').addEventListener('click', () => location.reload());
+
+function normalizeData() {
+  employees.forEach(e => { if (e.hoursCap === undefined) e.hoursCap = null; if (!e.eligibleShiftIds) e.eligibleShiftIds = []; if (!e.hoursCapOverrides) e.hoursCapOverrides = {}; });
+  shifts.forEach(s => { if (!s.activeDays || s.activeDays.length !== 7) s.activeDays = [true,true,true,true,true,true,true]; if (!s.slots) s.slots = 1; });
+}
+function applyState(parsed) {
+  employees = (parsed && parsed.employees) || [];
+  shifts = (parsed && parsed.shifts) || [];
+  holidays = (parsed && parsed.holidays) || [];
+  normalizeData();
+}
+async function loadData() {
+  const today = new Date();
+  viewYear = today.getFullYear(); viewMonth = today.getMonth();
+  let local = null, cloudData = null, reached = false, remember = null;
+  try {
+    const raw = lsGet(STORAGE_KEY);
+    if (raw) {
+      local = JSON.parse(raw);
+      if (Number.isInteger(local.viewYear)) viewYear = local.viewYear;
+      if (Number.isInteger(local.viewMonth)) viewMonth = local.viewMonth;
+    }
+  } catch (e) { console.error('Load error', e); }
+  holidayPin = getStoredPin();
+  let hadStored = !!holidayPin && !!cloudUrl, msg = '';
+  while (true) {
+    if (!holidayPin || !cloudUrl) {
+      const a = await askForPin(msg, !cloudUrl);
+      holidayPin = a.pin; remember = a.remember;
+      if (a.url) { cloudUrl = a.url; lsSet(URL_KEY, cloudUrl); }
+    }
+    try {
+      const res = await cloudCall({ action: 'load' });
+      if (res.ok) {
+        reached = true; cloudVersion = res.version; currentUser = res.user;
+        storePin(holidayPin, remember === null ? !!lsGet(PIN_KEY) : remember);
+        if (res.data) cloudData = res.data;
+        break;
+      }
+      hadStored = false; holidayPin = null; clearStoredPin();
+      msg = 'Incorrect PIN.';
+    } catch (e) {
+      if (hadStored) break; // signed in here before: carry on offline from the local copy
+      holidayPin = null; cloudUrl = ''; try { localStorage.removeItem(URL_KEY); } catch (er) {}
+      msg = "Can't reach the backend. Check the link and your connection.";
+    }
+  }
+  applyState(cloudData || local);
+  document.getElementById('userLabel').textContent = currentUser ? '👤 ' + currentUser : '';
+  if (reached) {
+    if (cloudData) setSaveStatus('saved', '☁️ Loaded');
+    else if (local && ((local.employees || []).length + (local.holidays || []).length)) { setSaveStatus('saving', '⏳ Uploading existing data…'); syncToCloud(cloudPayload()); }
+    else setSaveStatus('saved', '☁️ Ready');
+  } else {
+    setSaveStatus('offline', '📴 Offline — using the copy on this device');
+  }
+}
+
+// ── Live updates (two tabs / two people) ──
+let pollBusy = false, noVersionAction = false;
+function localDirty() { return saveTimerPending || cloudInFlight || !!cloudQueued; }
+function uiBusy() {
+  const a = document.activeElement;
+  if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return true;
+  return !!document.querySelector('.modal-overlay.open, #pinOverlay.show');
+}
+async function pollCloud() {
+  if (pollBusy || cloudConflict || !holidayPin || !cloudUrl || cloudVersion === null || document.hidden) return;
+  if (localDirty() || uiBusy()) return;
+  pollBusy = true;
+  try {
+    let r = null;
+    if (!noVersionAction) {
+      r = await cloudCall({ action: 'version' });
+      if (!(r && r.ok && typeof r.version === 'number')) { noVersionAction = true; r = null; }
+    }
+    if (r && r.version <= cloudVersion) return;
+    r = await cloudCall({ action: 'load' });
+    if (!(r && r.ok && r.data && r.version > cloudVersion)) return;
+    if (localDirty() || uiBusy()) return;
+    applyState(r.data); cloudVersion = r.version;
+    lsSet(STORAGE_KEY, JSON.stringify({ employees, shifts, holidays, viewYear, viewMonth, version: '1.0' }));
+    renderActiveView();
+    setSaveStatus('saved', '☁️ Updated' + (r.savedBy ? ' by ' + r.savedBy : ''));
+  } catch (e) { /* offline: try again later */ }
+  finally { pollBusy = false; }
+}
+setInterval(pollCloud, 6000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pollCloud(); });
+window.addEventListener('focus', pollCloud);
+
+// ══════════════════════════════════════════════════════════════════════════
+// COVERAGE / HOURS CALCULATIONS
+//
+// "Safe" is a matching problem, not a subtraction: a person can only cover a
+// post they're eligible for, and can only fill one post per day. So for each
+// day we build a bipartite graph (available staff) <-> (required post slots,
+// one node per slot per shift) with an edge wherever the person is eligible,
+// then run a maximum matching. If every slot can be matched, the leftover
+// unmatched staff is the real spare capacity. If some slots can't be matched
+// even in the best arrangement, that's a genuine shortfall — shown as a
+// negative number — regardless of how many "spare" people are sitting in
+// teams that aren't eligible for the gap.
+// ══════════════════════════════════════════════════════════════════════════
+function isEligibleForShift(emp, shiftId) {
+  if (!emp.eligibleShiftIds || !emp.eligibleShiftIds.length) return true; // blank/unset = can do any post
+  return emp.eligibleShiftIds.includes(shiftId);
+}
+// Effective weekly hours cap for a given Friday-start week (ISO date string).
+// A per-week override always wins; otherwise falls back to the employee's
+// default cap. Returns null if no cap applies at all (default AND no
+// override) — a null cap means "don't count this person as available".
+function effectiveHoursCap(emp, weekStartISO) {
+  if (emp.hoursCapOverrides && Object.prototype.hasOwnProperty.call(emp.hoursCapOverrides, weekStartISO)) {
+    const v = emp.hoursCapOverrides[weekStartISO];
+    return (v === null || v === '' || v === undefined) ? null : v;
+  }
+  return (emp.hoursCap === undefined || emp.hoursCap === '' ) ? null : emp.hoursCap;
+}
+// Names on holiday for a given ISO date, optionally simulating extra ranges and/or excluding one entry (for edit preview).
+function namesOnHoliday(dateStr, extraRanges, excludeId) {
+  const set = new Set();
+  holidays.forEach(h => { if (h.id !== excludeId && rangeOverlapsDate(h.start, h.end, dateStr)) set.add(h.name); });
+  (extraRanges||[]).forEach(r => { if (r.start && r.end && rangeOverlapsDate(r.start, r.end, dateStr)) set.add(r.name); });
+  return set;
+}
+// Kuhn's algorithm — maximum bipartite matching. leftAdj[i] = array of right-side
+// indices that left-node i can match to. Returns the size of the max matching.
+function maxBipartiteMatching(leftCount, rightCount, leftAdj) {
+  const matchRight = new Array(rightCount).fill(-1);
+  function tryAugment(u, visited) {
+    for (const v of leftAdj[u]) {
+      if (visited[v]) continue;
+      visited[v] = true;
+      if (matchRight[v] === -1 || tryAugment(matchRight[v], visited)) { matchRight[v] = u; return true; }
+    }
+    return false;
+  }
+  let matched = 0;
+  for (let u=0; u<leftCount; u++) { const visited = new Array(rightCount).fill(false); if (tryAugment(u, visited)) matched++; }
+  return matched;
+}
+function dayCoverage(dateObj, extraRanges, excludeId) {
+  const dateStr = fmtISO(dateObj);
+  const dow = dowIndex(dateObj);
+  const weekStartISO = fmtISO(weekStartFriday(dateObj));
+  const offSet = namesOnHoliday(dateStr, extraRanges, excludeId);
+
+  // Available pool: not on holiday, AND has a weekly hours cap set for this week.
+  const available = employees.filter(e => !offSet.has(e.name) && effectiveHoursCap(e, weekStartISO) !== null);
+
+  // Required slot instances for the day, tagged with their shift.
+  const slotInstances = [];
+  shifts.forEach(s => { if (s.activeDays[dow]) for (let i=0; i<(s.slots||0); i++) slotInstances.push(s); });
+
+  const required = slotInstances.length;
+  let matched = 0;
+  if (required > 0 && available.length > 0) {
+    const leftAdj = available.map(emp => {
+      const adj = [];
+      slotInstances.forEach((shift, si) => { if (isEligibleForShift(emp, shift.id)) adj.push(si); });
+      return adj;
+    });
+    matched = maxBipartiteMatching(available.length, slotInstances.length, leftAdj);
+  }
+  const shortfall = required - matched; // >0 means some posts can't be filled even optimally
+  const safe = shortfall > 0 ? -shortfall : (available.length - required);
+  return { dateStr, total: available.length, off: offSet.size, required, matched, shortfall, safe };
+}
+function shiftDurationHours(s) {
+  if (!/^\d{1,2}:\d{2}$/.test(s.startTime||'') || !/^\d{1,2}:\d{2}$/.test(s.finishTime||'')) return 0;
+  const [sh,sm] = s.startTime.split(':').map(Number);
+  const [fh,fm] = s.finishTime.split(':').map(Number);
+  let start = sh*60+sm, end = fh*60+fm;
+  if (end <= start) end += 24*60;
+  return (end-start)/60;
+}
+function weekRequiredHours(weekStart) {
+  let total = 0;
+  for (let d=0; d<7; d++) { const dow=d; shifts.forEach(s => { if (s.activeDays[dow]) total += (s.slots||0) * shiftDurationHours(s); }); }
+  return total;
+}
+function weekAvailableHours(weekStart, extraRanges, excludeId) {
+  const weekStartISO = fmtISO(weekStart);
+  let total = 0, capsSet = 0, capsMissing = 0;
+  employees.forEach(emp => {
+    const cap = effectiveHoursCap(emp, weekStartISO);
+    if (cap === null) { capsMissing++; return; }
+    capsSet++;
+    let daysAvail = 7;
+    for (let d=0; d<7; d++) {
+      const date = addDays(weekStart, d);
+      const dateStr = fmtISO(date);
+      const onHol = holidays.some(h => h.id !== excludeId && h.name === emp.name && rangeOverlapsDate(h.start, h.end, dateStr))
+        || (extraRanges||[]).some(r => r.name === emp.name && r.start && r.end && rangeOverlapsDate(r.start, r.end, dateStr));
+      if (onHol) daysAvail--;
+    }
+    total += cap * daysAvail / 7;
+  });
+  return { total, capsSet, capsMissing };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════════════════
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    activeView = el.dataset.view;
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n===el));
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id===activeView));
+    renderActiveView();
+  });
+});
+function renderActiveView() {
+  if (activeView === 'calendarView') renderCalendar();
+  else if (activeView === 'employeesView') renderEmployees();
+  else if (activeView === 'shiftsView') renderShifts();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CALENDAR VIEW
+// ══════════════════════════════════════════════════════════════════════════
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_ABBR = MONTH_NAMES.map(m => m.slice(0,3));
+document.getElementById('prevMonthBtn').addEventListener('click', () => { viewMonth--; if (viewMonth<0){viewMonth=11;viewYear--;} saveData(); renderCalendar(); });
+document.getElementById('nextMonthBtn').addEventListener('click', () => { viewMonth++; if (viewMonth>11){viewMonth=0;viewYear++;} saveData(); renderCalendar(); });
+document.getElementById('todayBtn').addEventListener('click', () => { const t=new Date(); viewYear=t.getFullYear(); viewMonth=t.getMonth(); saveData(); renderCalendar(); });
+document.getElementById('groupFilter').addEventListener('change', renderCalendar);
+document.getElementById('empSearch').addEventListener('input', renderCalendar);
+
+function weekLabel(weekStart) {
+  const weekEnd = addDays(weekStart, 6);
+  const mStart = MONTH_ABBR[weekStart.getMonth()], mEnd = MONTH_ABBR[weekEnd.getMonth()];
+  return weekStart.getMonth() === weekEnd.getMonth()
+    ? `Week ${weekStart.getDate()}–${weekEnd.getDate()} ${mStart}`
+    : `Week ${weekStart.getDate()} ${mStart} – ${weekEnd.getDate()} ${mEnd}`;
+}
+// Hover-tooltip summary for the Friday→Thursday week a given date belongs to:
+// how many staff are absent at some point that week (and the hours that
+// represents), and how many hours of required coverage can't be met even
+// with everyone available factored in.
+function weekSummaryTooltip(weekStart) {
+  const weekStartISO = fmtISO(weekStart);
+  const absentDays = {}; // name -> number of days absent within this week
+  for (let d=0; d<7; d++) {
+    const dateStr = fmtISO(addDays(weekStart, d));
+    holidays.forEach(h => { if (rangeOverlapsDate(h.start, h.end, dateStr)) absentDays[h.name] = (absentDays[h.name]||0) + 1; });
+  }
+  const absentNames = Object.keys(absentDays);
+  let absentHours = 0;
+  absentNames.forEach(name => {
+    const emp = employees.find(e => e.name === name);
+    if (!emp) return;
+    const cap = effectiveHoursCap(emp, weekStartISO);
+    if (cap === null) return;
+    absentHours += cap * (absentDays[name] / 7);
+  });
+  const required = weekRequiredHours(weekStart);
+  const avail = weekAvailableHours(weekStart, [], null);
+  const uncovered = Math.max(0, required - avail.total);
+  return `${weekLabel(weekStart)}\n${absentNames.length} employee${absentNames.length!==1?'s':''} absent (${Math.round(absentHours)}h)\n${Math.round(uncovered)}h uncovered`;
+}
+
+function populateGroupFilter() {
+  const sel = document.getElementById('groupFilter');
+  const current = sel.value;
+  const groupsSet = [...new Set(employees.map(e => e.group).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All groups</option>' + groupsSet.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  if (groupsSet.includes(current)) sel.value = current;
+}
+
+function renderCalendar() {
+  populateGroupFilter();
+  document.getElementById('monthLabel').textContent = MONTH_NAMES[viewMonth] + ' ' + viewYear;
+  const groupFilter = document.getElementById('groupFilter').value;
+  const search = document.getElementById('empSearch').value.trim().toLowerCase();
+
+  let list = employees.slice();
+  if (groupFilter) list = list.filter(e => e.group === groupFilter);
+  if (search) list = list.filter(e => e.name.toLowerCase().includes(search));
+  // Sort by group then name for readability
+  list.sort((a,b) => (a.group||'').localeCompare(b.group||'') || a.name.localeCompare(b.name));
+
+  document.getElementById('staffCountLabel').textContent = `${list.length} of ${employees.length} staff shown`;
+
+  const dim = daysInMonth(viewYear, viewMonth);
+  const dates = [];
+  for (let d=1; d<=dim; d++) dates.push(new Date(viewYear, viewMonth, d));
+
+  const table = document.getElementById('calTable');
+  if (!employees.length) {
+    table.innerHTML = '<tr><td style="border:none;"><div class="empty-state">No staff yet. Import roster data or add staff in the Employees tab to get started.</div></td></tr>';
+    return;
+  }
+
+  const weekTooltipCache = {}; // weekStartISO -> tooltip text, computed once per distinct week shown
+  function tooltipForDate(d) {
+    const ws = weekStartFriday(d), wsISO = fmtISO(ws);
+    if (!weekTooltipCache[wsISO]) weekTooltipCache[wsISO] = weekSummaryTooltip(ws);
+    return weekTooltipCache[wsISO];
+  }
+
+  let html = '<thead><tr><th class="corner">Staff</th>';
+  dates.forEach(d => {
+    const dow = dowIndex(d);
+    const cls = ['day-th'];
+    if (dow===1) cls.push('wk-sat'); if (dow===2) cls.push('wk-sun'); if (dow===0) cls.push('wk-start');
+    if (isToday(d)) cls.push('today-col');
+    html += `<th class="${cls.join(' ')}" title="${esc(tooltipForDate(d))}"><span class="dnum">${d.getDate()}</span>${DAYS[dow]}</th>`;
+  });
+  html += '</tr>';
+  html += '<tr class="cov-row"><td class="cov-corner">Coverage (safe)</td>';
+  dates.forEach(d => {
+    const cov = dayCoverage(d);
+    const cls = cov.safe > 0 ? 'safe' : (cov.safe === 0 ? 'tight' : 'over');
+    html += `<td class="cov-cell ${cls}" title="Required: ${cov.required} · Off: ${cov.off} · Total: ${cov.total}">${cov.safe>0?'+':''}${cov.safe}</td>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  let lastGroup = null;
+  list.forEach(emp => {
+    if (!groupFilter && emp.group && emp.group !== lastGroup) {
+      lastGroup = emp.group;
+      html += `<tr class="group-row"><td colspan="${dates.length+1}">${esc(emp.group)}</td></tr>`;
+    }
+    html += `<tr><td class="emp-cell" data-emp="${esc(emp.name)}">${esc(emp.name)}<span class="emp-sub">${esc(emp.category||'')}${emp.hoursCap?' · '+emp.hoursCap+'h cap':''}</span></td>`;
+    dates.forEach(d => {
+      const dateStr = fmtISO(d);
+      const dow = dowIndex(d);
+      const hol = holidays.find(h => h.name === emp.name && rangeOverlapsDate(h.start, h.end, dateStr));
+      const cls = ['day-cell'];
+      if (dow===1||dow===2) cls.push('wk-sat','wk-sun'); if (dow===0) cls.push('wk-start');
+      if (hol) cls.push('holiday');
+      html += `<td class="${cls.join(' ')}" data-emp="${esc(emp.name)}" data-date="${dateStr}" ${hol?`data-holid="${hol.id}"`:''} title="${hol && hol.note ? esc(hol.note) : ''}">${hol?'H':''}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  table.querySelectorAll('.emp-cell').forEach(el => el.addEventListener('click', () => openHolidayModal(el.dataset.emp, null)));
+  table.querySelectorAll('td.day-cell').forEach(el => el.addEventListener('click', () => {
+    if (el.dataset.holid) openHolidayModal(el.dataset.emp, el.dataset.holid);
+    else openHolidayModal(el.dataset.emp, null, el.dataset.date);
+  }));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// HOLIDAY MODAL
+// ══════════════════════════════════════════════════════════════════════════
+function openHolidayModal(empName, holidayId, prefillDate) {
+  editingHolidayEmpName = empName;
+  editingHolidayId = holidayId;
+  document.getElementById('holEmpName').textContent = empName;
+  const hol = holidayId ? holidays.find(h => h.id === holidayId) : null;
+  document.getElementById('holModalTitle').textContent = hol ? 'Edit Holiday' : 'Add Holiday';
+  document.getElementById('holStart').value = hol ? hol.start : (prefillDate || fmtISO(new Date()));
+  document.getElementById('holEnd').value = hol ? hol.end : (prefillDate || fmtISO(new Date()));
+  document.getElementById('holNote').value = hol ? (hol.note||'') : '';
+  document.getElementById('holDeleteBtn').style.display = hol ? '' : 'none';
+  renderHolidayPreview();
+  document.getElementById('holModal').classList.add('open');
+}
+document.getElementById('holStart').addEventListener('input', renderHolidayPreview);
+document.getElementById('holEnd').addEventListener('input', renderHolidayPreview);
+
+function renderHolidayPreview() {
+  const start = document.getElementById('holStart').value;
+  const end = document.getElementById('holEnd').value;
+  const box = document.getElementById('holPreview');
+  if (!start || !end || end < start) { box.innerHTML = '<div class="hint-text">Enter a valid start and end date to preview coverage.</div>'; return; }
+
+  const extra = [{ name: editingHolidayEmpName, start, end }];
+  const sD = parseISO(start), eD = parseISO(end);
+  const totalDays = Math.round((eD-sD)/86400000)+1;
+
+  // Walk every day in range, find problem days (safe <= 0 after this holiday)
+  const problems = [];
+  let minSafe = Infinity;
+  let cur = new Date(sD);
+  let iterCount = 0;
+  while (cur <= eD && iterCount < 400) {
+    const cov = dayCoverage(cur, extra, editingHolidayId);
+    if (cov.safe < minSafe) minSafe = cov.safe;
+    if (cov.safe <= 0) problems.push({ date: fmtISO(cur), label: DAYS[dowIndex(cur)] + ' ' + (cur.getMonth()+1)+'/'+cur.getDate(), safe: cov.safe });
+    cur = addDays(cur, 1); iterCount++;
+  }
+
+  // Weekly hours check for every Fri-Thu week touched by the range
+  const weeks = [];
+  let wCur = weekStartFriday(sD);
+  let wIter = 0;
+  while (wCur <= eD && wIter < 60) {
+    const req = weekRequiredHours(wCur);
+    const avail = weekAvailableHours(wCur, extra, editingHolidayId);
+    weeks.push({ start: wCur, req, avail });
+    wCur = addDays(wCur, 7); wIter++;
+  }
+
+  let html = '<div class="preview-box">';
+  html += `<div class="preview-summary">
+    <div class="preview-stat"><span class="num">${totalDays}</span><span class="lbl">Days</span></div>
+    <div class="preview-stat ${minSafe<0?'warn':(minSafe===0?'':'ok')}"><span class="num">${minSafe===Infinity?'—':(minSafe>0?'+':'')+minSafe}</span><span class="lbl">Worst-day capacity</span></div>
+    <div class="preview-stat ${problems.length?'warn':'ok'}"><span class="num">${problems.length}</span><span class="lbl">Short-staffed days</span></div>
+  </div>`;
+
+  if (problems.length) {
+    html += '<div style="font-weight:bold;font-size:11px;margin-bottom:3px;">Days that would be short-staffed:</div><ul class="problem-list">';
+    problems.slice(0,20).forEach(p => { html += `<li><span>${esc(p.label)}</span><span class="pd-safe">${p.safe}</span></li>`; });
+    if (problems.length > 20) html += `<li><span style="color:#6c757d;">+${problems.length-20} more day(s)</span></li>`;
+    html += '</ul>';
+  } else {
+    html += '<div style="color:#198754;font-weight:bold;font-size:12px;">✓ No day in this range drops below full coverage.</div>';
+  }
+
+  html += '<div style="font-weight:bold;font-size:11px;margin:10px 0 3px;">Weekly hours capacity (Fri→Thu weeks):</div>';
+  weeks.forEach(w => {
+    const short = w.avail.total < w.req;
+    html += `<div class="week-hours-row"><span>Week of ${w.start.getDate()}/${w.start.getMonth()+1}</span>
+      <span class="${short?'short':'ok'}">${Math.round(w.avail.total)}h avail. / ${Math.round(w.req)}h needed${short?' ⚠':''}</span></div>`;
+  });
+  if (weeks.some(w => w.avail.capsMissing > 0)) {
+    const missing = weeks[0].avail.capsMissing;
+    html += `<div class="hint-text">${missing} staff have no weekly hours cap set, so aren't counted in the hours total above — set caps in the Employees tab for a fuller picture.</div>`;
+  }
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+document.getElementById('holSaveBtn').addEventListener('click', () => {
+  const start = document.getElementById('holStart').value;
+  const end = document.getElementById('holEnd').value;
+  const note = document.getElementById('holNote').value.trim();
+  if (!start || !end || end < start) { alert('Please enter a valid start and end date (end must not be before start).'); return; }
+  if (editingHolidayId) {
+    const h = holidays.find(x => x.id === editingHolidayId);
+    if (h) { h.start = start; h.end = end; h.note = note; }
+  } else {
+    holidays.push({ id: uid(), name: editingHolidayEmpName, start, end, note });
+  }
+  saveData(); closeModal('holModal'); renderCalendar();
+});
+document.getElementById('holDeleteBtn').addEventListener('click', () => {
+  if (!editingHolidayId) return;
+  if (!confirm('Delete this holiday entry?')) return;
+  holidays = holidays.filter(h => h.id !== editingHolidayId);
+  saveData(); closeModal('holModal'); renderCalendar();
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// EMPLOYEES VIEW
+// ══════════════════════════════════════════════════════════════════════════
+document.getElementById('addEmpBtn').addEventListener('click', () => {
+  employees.push({ name: 'New Staff Member', empNo: '', category: '', group: '', hoursCap: null, eligibleShiftIds: [], hoursCapOverrides: {} });
+  saveData(); renderEmployees();
+});
+document.getElementById('empMgrSearch').addEventListener('input', renderEmployees);
+
+function eligibleShiftsSummary(emp) {
+  if (!emp.eligibleShiftIds || !emp.eligibleShiftIds.length) return 'All shifts';
+  return `${emp.eligibleShiftIds.length} shift${emp.eligibleShiftIds.length!==1?'s':''}`;
+}
+function renderEmployees() {
+  const search = document.getElementById('empMgrSearch').value.trim().toLowerCase();
+  let list = employees.map((e,i) => ({...e, _i:i}));
+  if (search) list = list.filter(e => e.name.toLowerCase().includes(search));
+  list.sort((a,b) => a.name.localeCompare(b.name));
+  document.getElementById('empCountLabel').textContent = `${employees.length} staff · ${employees.filter(e=>e.hoursCap===null||e.hoursCap===''||e.hoursCap===undefined).length} without an hours cap (not counted as available)`;
+
+  const body = document.getElementById('empTableBody');
+  if (!list.length) { body.innerHTML = `<tr><td colspan="7"><div class="empty-state">No staff match.</div></td></tr>`; return; }
+  body.innerHTML = list.map(e => `
+    <tr data-i="${e._i}">
+      <td><input type="text" class="emp-f-name" value="${esc(e.name)}"></td>
+      <td><input type="text" class="emp-f-empno" value="${esc(e.empNo||'')}"></td>
+      <td><input type="text" class="emp-f-category" value="${esc(e.category||'')}"></td>
+      <td><input type="text" class="emp-f-group" value="${esc(e.group||'')}"></td>
+      <td>
+        <input type="number" class="emp-f-hours" min="0" max="80" value="${e.hoursCap===null||e.hoursCap===undefined?'':e.hoursCap}" placeholder="e.g. 40">${(e.hoursCap===null||e.hoursCap===undefined||e.hoursCap==='')?' <span class="badge badge-missing">not set</span>':''}
+        <div><button type="button" class="btn btn-dark btn-sm emp-week-btn" data-i="${e._i}" style="margin-top:4px;">⏱ Per-week…</button></div>
+      </td>
+      <td><button type="button" class="btn btn-dark btn-sm emp-elig-btn" data-i="${e._i}">${esc(eligibleShiftsSummary(e))} ✎</button></td>
+      <td><span class="del-row" data-i="${e._i}">✕</span></td>
+    </tr>`).join('');
+
+  body.querySelectorAll('.emp-f-name').forEach(el => el.addEventListener('change', () => {
+    const i = +el.closest('tr').dataset.i; const oldName = employees[i].name; const newName = el.value.trim() || oldName;
+    employees[i].name = newName;
+    holidays.forEach(h => { if (h.name === oldName) h.name = newName; });
+    saveData(); renderEmployees();
+  }));
+  body.querySelectorAll('.emp-f-empno').forEach(el => el.addEventListener('change', () => { employees[+el.closest('tr').dataset.i].empNo = el.value.trim(); saveData(); }));
+  body.querySelectorAll('.emp-f-category').forEach(el => el.addEventListener('change', () => { employees[+el.closest('tr').dataset.i].category = el.value.trim(); saveData(); }));
+  body.querySelectorAll('.emp-f-group').forEach(el => el.addEventListener('change', () => { employees[+el.closest('tr').dataset.i].group = el.value.trim(); saveData(); renderEmployees(); }));
+  body.querySelectorAll('.emp-f-hours').forEach(el => el.addEventListener('change', () => {
+    const v = el.value.trim();
+    employees[+el.closest('tr').dataset.i].hoursCap = v === '' ? null : Math.max(0, Number(v));
+    saveData(); renderEmployees();
+  }));
+  body.querySelectorAll('.emp-elig-btn').forEach(el => el.addEventListener('click', () => openEligibilityModal(+el.dataset.i)));
+  body.querySelectorAll('.emp-week-btn').forEach(el => el.addEventListener('click', () => openWeeklyHoursModal(+el.dataset.i)));
+  body.querySelectorAll('.del-row').forEach(el => el.addEventListener('click', () => {
+    const i = +el.dataset.i;
+    if (!confirm(`Remove ${employees[i].name} from Holiday Manager? Their holiday entries will also be removed.`)) return;
+    const name = employees[i].name;
+    employees.splice(i,1);
+    holidays = holidays.filter(h => h.name !== name);
+    saveData(); renderEmployees();
+  }));
+}
+
+// ── Eligible Shifts modal ──
+let eligModalEmpIndex = null;
+function openEligibilityModal(empIndex) {
+  eligModalEmpIndex = empIndex;
+  const emp = employees[empIndex];
+  document.getElementById('eligModalName').textContent = emp.name;
+  const restricted = !!(emp.eligibleShiftIds && emp.eligibleShiftIds.length);
+  document.getElementById('eligAllToggle').checked = !restricted;
+  const list = document.getElementById('eligShiftList');
+  list.style.display = restricted ? '' : 'none';
+  list.innerHTML = shifts.map(s => `
+    <label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px;">
+      <input type="checkbox" class="elig-shift-cb" value="${s.id}" ${(emp.eligibleShiftIds||[]).includes(s.id)?'checked':''}> ${esc(s.title)}
+    </label>`).join('') || '<div class="hint-text">No shifts defined yet.</div>';
+  document.getElementById('eligModal').classList.add('open');
+}
+document.getElementById('eligAllToggle').addEventListener('change', (e) => {
+  document.getElementById('eligShiftList').style.display = e.target.checked ? 'none' : '';
+});
+document.getElementById('eligSaveBtn').addEventListener('click', () => {
+  const emp = employees[eligModalEmpIndex];
+  if (document.getElementById('eligAllToggle').checked) {
+    emp.eligibleShiftIds = [];
+  } else {
+    emp.eligibleShiftIds = Array.from(document.querySelectorAll('.elig-shift-cb:checked')).map(cb => cb.value);
+  }
+  saveData(); closeModal('eligModal'); renderEmployees();
+});
+
+// ── Weekly Hours override modal ──
+let weekModalEmpIndex = null;
+function openWeeklyHoursModal(empIndex) {
+  weekModalEmpIndex = empIndex;
+  const emp = employees[empIndex];
+  document.getElementById('weekModalName').textContent = emp.name;
+  document.getElementById('weekModalDefault').textContent = (emp.hoursCap===null||emp.hoursCap===undefined||emp.hoursCap==='') ? 'not set' : emp.hoursCap + 'h/week';
+  document.getElementById('weekOverrideDate').value = fmtISO(weekStartFriday(new Date()));
+  document.getElementById('weekOverrideValue').value = '';
+  document.getElementById('weekApplyForward').checked = false;
+  renderWeekOverridesList();
+  document.getElementById('weekHoursModal').classList.add('open');
+}
+function renderWeekOverridesList() {
+  const emp = employees[weekModalEmpIndex];
+  const overrides = emp.hoursCapOverrides || {};
+  const keys = Object.keys(overrides).sort();
+  const box = document.getElementById('weekOverridesList');
+  if (!keys.length) { box.innerHTML = '<div class="hint-text">No per-week overrides set — this person uses their default cap every week.</div>'; return; }
+  box.innerHTML = keys.map(k => `
+    <div class="week-hours-row"><span>Week of ${k}</span><span>${overrides[k]===null?'not counted':overrides[k]+'h'} <span class="del-row" data-wk="${k}" style="margin-left:8px;">✕</span></span></div>
+  `).join('');
+  box.querySelectorAll('.del-row').forEach(el => el.addEventListener('click', () => {
+    delete employees[weekModalEmpIndex].hoursCapOverrides[el.dataset.wk];
+    saveData(); renderWeekOverridesList();
+  }));
+}
+document.getElementById('weekOverrideSaveBtn').addEventListener('click', () => {
+  const emp = employees[weekModalEmpIndex];
+  const rawDate = document.getElementById('weekOverrideDate').value;
+  if (!rawDate) { alert('Pick a date to identify the week.'); return; }
+  const weekStartISO = fmtISO(weekStartFriday(parseISO(rawDate)));
+  const rawVal = document.getElementById('weekOverrideValue').value.trim();
+  const val = rawVal === '' ? null : Math.max(0, Number(rawVal));
+  if (!emp.hoursCapOverrides) emp.hoursCapOverrides = {};
+  emp.hoursCapOverrides[weekStartISO] = val;
+  if (document.getElementById('weekApplyForward').checked) {
+    emp.hoursCap = val;
+  }
+  saveData(); renderWeekOverridesList(); renderEmployees();
+  document.getElementById('weekModalDefault').textContent = (emp.hoursCap===null||emp.hoursCap===undefined||emp.hoursCap==='') ? 'not set' : emp.hoursCap + 'h/week';
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHIFTS VIEW
+// ══════════════════════════════════════════════════════════════════════════
+document.getElementById('addShiftBtn').addEventListener('click', () => {
+  shifts.push({ id: uid(), title: 'New Shift', color: '#0d6efd', startTime: '07:00', finishTime: '19:00', slots: 1, activeDays: [true,true,true,true,true,true,true] });
+  saveData(); renderShifts();
+});
+
+function renderShifts() {
+  document.getElementById('shiftCountLabel').textContent = `${shifts.length} shift${shifts.length!==1?'s':''} · ${shifts.reduce((a,s)=>a+(s.slots||0),0)} posts at peak`;
+  const body = document.getElementById('shiftTableBody');
+  if (!shifts.length) { body.innerHTML = `<tr><td colspan="8"><div class="empty-state">No shifts yet. Import roster data or add a shift to define required coverage.</div></td></tr>`; return; }
+  body.innerHTML = shifts.map((s,i) => `
+    <tr data-i="${i}">
+      <td><input type="color" class="color-swatch-input shift-f-color" value="${esc(s.color||'#0d6efd')}"></td>
+      <td><input type="text" class="shift-f-title" value="${esc(s.title)}"></td>
+      <td><input type="text" class="shift-f-start" value="${esc(s.startTime||'')}" placeholder="07:00"></td>
+      <td><input type="text" class="shift-f-finish" value="${esc(s.finishTime||'')}" placeholder="19:00"></td>
+      <td><input type="number" class="shift-f-slots" min="0" value="${s.slots||0}"></td>
+      <td style="text-align:center;color:#6c757d;">${fmtHrs(shiftDurationHours(s))}</td>
+      <td><div class="day-toggle-set">${DAYS.map((d,di)=>`<button type="button" class="day-toggle ${s.activeDays[di]?'on':''}" data-di="${di}">${d[0]}</button>`).join('')}</div></td>
+      <td><span class="del-row" data-i="${i}">✕</span></td>
+    </tr>`).join('');
+
+  body.querySelectorAll('.shift-f-color').forEach(el => el.addEventListener('change', () => { shifts[+el.closest('tr').dataset.i].color = el.value; saveData(); }));
+  body.querySelectorAll('.shift-f-title').forEach(el => el.addEventListener('change', () => { shifts[+el.closest('tr').dataset.i].title = el.value.trim() || 'Shift'; saveData(); }));
+  body.querySelectorAll('.shift-f-start').forEach(el => el.addEventListener('change', () => { shifts[+el.closest('tr').dataset.i].startTime = el.value.trim(); saveData(); renderShifts(); }));
+  body.querySelectorAll('.shift-f-finish').forEach(el => el.addEventListener('change', () => { shifts[+el.closest('tr').dataset.i].finishTime = el.value.trim(); saveData(); renderShifts(); }));
+  body.querySelectorAll('.shift-f-slots').forEach(el => el.addEventListener('change', () => { shifts[+el.closest('tr').dataset.i].slots = Math.max(0, Number(el.value)||0); saveData(); renderShifts(); }));
+  body.querySelectorAll('.day-toggle').forEach(el => el.addEventListener('click', () => {
+    const i = +el.closest('tr').dataset.i, di = +el.dataset.di;
+    shifts[i].activeDays[di] = !shifts[i].activeDays[di];
+    saveData(); renderShifts();
+  }));
+  body.querySelectorAll('.del-row').forEach(el => el.addEventListener('click', () => {
+    const i = +el.dataset.i;
+    if (!confirm(`Delete shift "${shifts[i].title}"?`)) return;
+    shifts.splice(i,1); saveData(); renderShifts();
+  }));
+}
+function fmtHrs(h) { return (Math.round(h*100)/100).toString().replace(/\.0+$/,'') + 'h'; }
+
+// ══════════════════════════════════════════════════════════════════════════
+// IMPORT ROSTER DATA (from Weekly Roster export JSON)
+// ══════════════════════════════════════════════════════════════════════════
+const ROSTER_HOLIDAY_RULE_DEFAULTS = {
+  'Howth Static': 'weekend', 'Pelletstown': 'weekend',
+  'Aviva': 'event', 'Druncomdra': 'event', 'Drumcondra': 'event',
+  'Connolly Extra': 'event', 'Co Plat Overbook': 'event', 'E-PickNick HEU': 'event',
+  'Paid Hol': 'exclude', '> OPEN POST <': 'exclude', 'Blocked': 'exclude'
+};
+document.getElementById('importRosterBtn').addEventListener('click', () => { document.getElementById('importPasteArea').value=''; document.getElementById('importSummary').innerHTML=''; document.getElementById('importFileInput').value=''; document.getElementById('importModal').classList.add('open'); });
+document.getElementById('importFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { document.getElementById('importPasteArea').value = reader.result; };
+  reader.readAsText(file);
+});
+document.getElementById('importRunBtn').addEventListener('click', () => {
+  const raw = document.getElementById('importPasteArea').value.trim();
+  if (!raw) { alert('Choose a file or paste the roster JSON first.'); return; }
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { alert('That doesn\'t look like valid JSON.'); return; }
+  if (!data.employees || !data.periods) { alert('This doesn\'t look like a Weekly Roster export — expected "employees" and "periods".'); return; }
+
+  // ── Merge employees ──
+  const empMeta = data.employeeMeta || {};
+  const catLabelById = {};
+  (data.categories || []).forEach(c => { catLabelById[c.id] = c.label; });
+  let empAdded = 0, empUpdated = 0;
+  (data.employees || []).forEach(name => {
+    if (!name || !name.trim() || name.trim().toLowerCase() === 'not operating') return;
+    const meta = empMeta[name] || {};
+    const categoryLabel = catLabelById[meta.category] || meta.category || '';
+    let existing = employees.find(e => e.name === name);
+    if (existing) {
+      existing.empNo = meta.empNo || existing.empNo;
+      existing.category = categoryLabel || existing.category;
+      existing.group = meta.group || existing.group;
+      empUpdated++;
+    } else {
+      employees.push({ name, empNo: meta.empNo || '', category: categoryLabel, group: meta.group || '', hoursCap: null, eligibleShiftIds: [], hoursCapOverrides: {} });
+      empAdded++;
+    }
+  });
+
+  // ── Merge shifts: dedupe by title across every tab of every period ──
+  const seenTitles = new Map();
+  (data.periods || []).forEach(p => (p.tabs || []).forEach(t => (t.data || []).forEach(shift => {
+    if (!shift.title || seenTitles.has(shift.title)) return;
+    seenTitles.set(shift.title, shift);
+  })));
+  let shiftAdded = 0, shiftUpdated = 0, shiftSkipped = 0;
+  seenTitles.forEach((shift, title) => {
+    const rule = shift.holidayRule || ROSTER_HOLIDAY_RULE_DEFAULTS[title] || 'daily';
+    if (rule === 'exclude') { shiftSkipped++; return; }
+    const activeDays = rule === 'weekend' ? [false,true,true,false,false,false,false]
+                      : rule === 'event'   ? [false,false,false,false,false,false,false]
+                      : [true,true,true,true,true,true,true];
+    const slots = (shift.slotNames && shift.slotNames.length) || (shift.slots && shift.slots.length) || 1;
+    let existing = shifts.find(s => s.title === title);
+    if (existing) {
+      existing.color = shift.color || existing.color;
+      existing.startTime = shift.startTime || existing.startTime;
+      existing.finishTime = shift.finishTime || existing.finishTime;
+      existing.slots = slots;
+      shiftUpdated++;
+    } else {
+      shifts.push({ id: uid(), title, color: shift.color || '#0d6efd', startTime: shift.startTime || '', finishTime: shift.finishTime || '', slots, activeDays });
+      shiftAdded++;
+    }
+  });
+
+  saveData();
+  document.getElementById('importSummary').innerHTML = `<div class="import-summary">
+    <b>Staff:</b> ${empAdded} added, ${empUpdated} updated (hours caps left untouched).<br>
+    <b>Shifts:</b> ${shiftAdded} added, ${shiftUpdated} updated, ${shiftSkipped} skipped (marked non-post / excluded in roster).<br>
+    New/updated shifts default to <em>event-only</em> days as "off" until you set which days they actually run, under 🛠 Shifts — check those before relying on coverage numbers.
+  </div>`;
+  renderActiveView();
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// BACKUP EXPORT / IMPORT
+// ══════════════════════════════════════════════════════════════════════════
+document.getElementById('exportBackupBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ employees, shifts, holidays, version: '1.0' }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `holiday-manager-backup-${fmtISO(new Date())}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('importBackupBtn').addEventListener('click', () => { document.getElementById('importBackupFileInput').value=''; document.getElementById('importBackupModal').classList.add('open'); });
+document.getElementById('importBackupFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!confirm('This will replace everything currently in Holiday Manager. Continue?')) return;
+      employees = data.employees || [];
+      shifts = data.shifts || [];
+      holidays = data.holidays || [];
+      employees.forEach(e => { if (e.hoursCap === undefined) e.hoursCap = null; if (!e.eligibleShiftIds) e.eligibleShiftIds = []; if (!e.hoursCapOverrides) e.hoursCapOverrides = {}; });
+      shifts.forEach(s => { if (!s.activeDays || s.activeDays.length !== 7) s.activeDays = [true,true,true,true,true,true,true]; });
+      saveData(); closeModal('importBackupModal'); renderActiveView();
+    } catch(err) { alert('That file could not be read as a Holiday Manager backup.'); }
+  };
+  reader.readAsText(file);
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════════════════════════════════════════════
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => closeModal(el.dataset.close)));
+document.querySelectorAll('.modal-overlay').forEach(el => el.addEventListener('click', (e) => { if (e.target === el) closeModal(el.id); }));
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+loadData().then(() => { renderActiveView(); });
+</script>
+</body>
+</html>
