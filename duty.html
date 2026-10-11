@@ -949,7 +949,7 @@ function buildRosterPDF(){
     doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(0,0,0);
     doc.text(dateHeader + (isContinuation?' (cont.)':''), marginL, 8);
     doc.setFontSize(13);
-    doc.text('DUTY ROSTER', pageW/2, 8, {align:'center'});
+    doc.text('BVN On-Board Teams', pageW/2, 8, {align:'center'});
     doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
     if(!isContinuation) doc.text('Ink friendly', pageW - marginR, 8, {align:'right'});
     doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
@@ -958,7 +958,7 @@ function buildRosterPDF(){
   }
   function drawFooter(){
     doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(120,120,120);
-    doc.text('BVN Security - Duty Roster - Generated ' + new Date().toLocaleString('en-IE'), marginL, pageH-4);
+    doc.text('BVN Security - On-Board Teams - Generated ' + new Date().toLocaleString('en-IE'), marginL, pageH-4);
   }
 
   function drawPost(p, x, yTop, w, h, scale){
@@ -1068,7 +1068,11 @@ function buildRosterPDF(){
     toast('PDF saved (1 page)');
   }
 
-  const fname = 'Roster_' + state.date + '.pdf';
+  const dd = new Date(state.date+'T00:00:00');
+  const dayCode = ['SUN','MON','TUE','WED','THU','FRI','SAT'][dd.getDay()];
+  const p2 = function(n){ return String(n).padStart(2,'0'); };
+  const fname = 'BVN_On_Board_Teams_' + dayCode + '_' + p2(dd.getDate()) + '-' + p2(dd.getMonth()+1) + '-' + p2(dd.getFullYear()%100) + '.pdf';
+  doc.setProperties({ title: 'BVN On-Board Teams' });
   doc.save(fname);
 }
 
