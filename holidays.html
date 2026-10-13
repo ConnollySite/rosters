@@ -161,7 +161,7 @@ textarea.import-paste { width: 100%; height: 140px; font-family: monospace; font
 </div>
 
 <header>
-  <h1>🏖 Holiday Manager — Connolly Site</h1>
+  <h1>🏖 Holiday Manager — Connolly Site <small style="font-size:11px;opacity:.6;font-weight:400">v13-10 · cloud</small></h1>
   <div class="header-btns">
     <span id="userLabel"></span>
     <span class="save-indicator saved" id="saveIndicator">💾 Saved</span>
@@ -408,7 +408,9 @@ function setSaveStatus(status, msg) {
 
 // ── Cloud (Google Apps Script + Drive file, PIN protected) ──────────────
 const URL_KEY = 'holiday_cloud_url', PIN_KEY = 'holiday_cloud_pin';
-let cloudUrl = lsGet(URL_KEY) || '';
+// Stored in the same Apps Script as the Onboard Patrol (supervisor PIN). The address is not a secret; only the PIN is asked, once per computer.
+const DEFAULT_URL = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+let cloudUrl = lsGet(URL_KEY) || DEFAULT_URL;
 let holidayPin = null, cloudVersion = null, currentUser = null;
 let cloudConflict = false, cloudInFlight = false, cloudQueued = null;
 function cloudPayload() { return { employees, shifts, holidays, version: '1.0' }; }
@@ -416,7 +418,7 @@ function getStoredPin() { try { return sessionStorage.getItem(PIN_KEY) || lsGet(
 function clearStoredPin() { try { sessionStorage.removeItem(PIN_KEY); } catch (e) {} try { localStorage.removeItem(PIN_KEY); } catch (e) {} }
 function storePin(pin, remember) { clearStoredPin(); if (remember) lsSet(PIN_KEY, pin); else { try { sessionStorage.setItem(PIN_KEY, pin); } catch (e) {} } }
 function cloudCall(body) {
-  return fetch(cloudUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ pin: holidayPin }, body)) }).then(r => r.json());
+  return fetch(cloudUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ kind: 'holiday', pin: holidayPin }, body)) }).then(r => r.json());
 }
 const URL_OK = u => /^https:\/\/script\.google\.com\/.+\/exec/.test(u);
 function askForPin(msg, needUrl) {
@@ -518,7 +520,7 @@ async function loadData() {
       msg = 'Incorrect PIN.';
     } catch (e) {
       if (hadStored) break; // signed in here before: carry on offline from the local copy
-      holidayPin = null; cloudUrl = ''; try { localStorage.removeItem(URL_KEY); } catch (er) {}
+      holidayPin = null; cloudUrl = DEFAULT_URL; try { localStorage.removeItem(URL_KEY); } catch (er) {}
       msg = "Can't reach the backend. Check the link and your connection.";
     }
   }
