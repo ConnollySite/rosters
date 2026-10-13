@@ -174,7 +174,16 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
 }
 .btn-names{background:var(--bg);color:var(--navy);border:1.5px solid var(--line) !important;}
 .btn-print{background:var(--navy);color:#fff;}
+.btn-names.on{background:#1F8A4C !important;color:#fff !important;border-color:#1F8A4C !important;}
 .btn-print:active, .btn-names:active{opacity:.85;}
+#cdOverlay{position:fixed;inset:0;background:rgba(15,30,50,.92);display:none;align-items:center;justify-content:center;z-index:99;padding:20px;}
+#cdOverlay.show{display:flex;}
+#cdBox{background:#fff;border-radius:14px;padding:22px;max-width:380px;width:100%;}
+#cdBox h2{margin:0 0 6px;font-size:18px;color:var(--navy);} #cdBox p{margin:0 0 12px;font-size:13px;color:var(--sub);}
+#cdBox input[type=text],#cdBox input[type=password]{width:100%;font-size:16px;padding:10px;border:1.5px solid var(--line);border-radius:8px;margin-bottom:10px;}
+#cdBox .go{width:100%;padding:11px;font-size:16px;font-weight:700;background:var(--navy);color:#fff;border:0;border-radius:8px;cursor:pointer;}
+#cdBox .skip{display:block;text-align:center;margin-top:10px;font-size:13px;color:var(--sub);cursor:pointer;text-decoration:underline;}
+#cdErr{color:#C4341F;font-size:13px;min-height:18px;margin-bottom:6px;}
 
 .overlay{
   position:fixed;inset:0;background:rgba(10,20,35,.5);display:none;align-items:flex-end;justify-content:center;z-index:50;
@@ -230,7 +239,7 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
   <div class="wrap">
     <div class="brand-row">
       <div>
-        <h1>Duty Roster</h1>
+        <h1>Duty Roster <small style="font-size:11px;opacity:.6;font-weight:400">v13-10b</small></h1>
         <div class="sub">BVN Security · Connolly</div>
       </div>
       <button class="icon-btn" id="copyPrevBtn" title="Copy previous saved day">⧉</button>
@@ -255,9 +264,21 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
 
 <div class="bottombar">
   <button class="btn-names" id="openNamesBtn">👤 Manage names</button>
+  <button class="btn-names" id="cloudBtn">☁️ …</button>
+  <button class="btn-names" id="readyBtn">☐ Mark day as ready</button>
   <button class="btn-names" id="opSendBtn">📡 Send to Onboard Patrol</button>
   <button class="btn-print" id="printBtn">🖨 Print / PDF</button>
 </div>
+
+<div id="cdOverlay"><div id="cdBox">
+  <h2>Connect the Duty Roster to the cloud</h2>
+  <p>So every computer shows the same roster and every change is saved automatically. Type the supervisor PIN (only once on this computer).</p>
+  <input type="text" id="cdUrl" placeholder="Backend link (ends with /exec)" autocomplete="off">
+  <input type="password" id="cdPin" placeholder="PIN" autocomplete="off">
+  <div id="cdErr"></div>
+  <button class="go" id="cdGo">Open</button>
+  <a class="skip" id="cdSkip">Use this device only (no cloud)</a>
+</div></div>
 
 <div class="overlay" id="namesOverlay">
   <div class="sheet">
@@ -326,9 +347,9 @@ const LS_EMP_CUSTOM = 'roster_emp_custom';
 const LS_EMP_HIDDEN = 'roster_emp_hidden';
 
 function getCustomEmployees(){ try{ return JSON.parse(localStorage.getItem(LS_EMP_CUSTOM)||'[]'); }catch(e){ return []; } }
-function setCustomEmployees(list){ localStorage.setItem(LS_EMP_CUSTOM, JSON.stringify(list)); }
+function setCustomEmployees(list){ localStorage.setItem(LS_EMP_CUSTOM, JSON.stringify(list)); if(typeof cdMarkEmp==='function') cdMarkEmp(); }
 function getHiddenDefaults(){ try{ return JSON.parse(localStorage.getItem(LS_EMP_HIDDEN)||'[]'); }catch(e){ return []; } }
-function setHiddenDefaults(list){ localStorage.setItem(LS_EMP_HIDDEN, JSON.stringify(list)); }
+function setHiddenDefaults(list){ localStorage.setItem(LS_EMP_HIDDEN, JSON.stringify(list)); if(typeof cdMarkEmp==='function') cdMarkEmp(); }
 
 function getAllEmployees(){
   const hidden = getHiddenDefaults();
@@ -450,7 +471,12 @@ function loadDay(dateStr){
   }catch(e){}
   return null;
 }
-function saveDay(dateStr, data){ localStorage.setItem(LS_PREFIX+dateStr, JSON.stringify(data)); }
+// noSync = a day that was only seeded (nothing typed yet): kept on this device, never pushed, and any real version from the cloud wins.
+function saveDay(dateStr, data, noSync){
+  data._savedAt = noSync ? 0 : Date.now();
+  localStorage.setItem(LS_PREFIX+dateStr, JSON.stringify(data));
+  if(!noSync && typeof cdMarkDirty==='function') cdMarkDirty(dateStr);
+}
 function listSavedDates(){
   const out = [];
   for(let i=0;i<localStorage.length;i++){
@@ -465,6 +491,7 @@ function findPreviousDate(beforeDate){
 }
 function blankCopy(dayData){
   const clone = JSON.parse(JSON.stringify(dayData));
+  delete clone.ready; delete clone._savedAt;
   clone.sections.forEach(function(sec){
     sec.posts.forEach(function(p){
       p.time='';
@@ -484,7 +511,7 @@ function ensureDayLoaded(dateStr){
     } else {
       d = seedTemplate();
     }
-    saveDay(dateStr, d);
+    saveDay(dateStr, d, true);
   }
   return d;
 }
@@ -1076,26 +1103,189 @@ function buildRosterPDF(){
   doc.save(fname);
 }
 
+/* ============== CLOUD (same backend and PIN as the Onboard Patrol link) ============== */
+// The backend address is not a secret (it is also in the dashboard page), so it is built in: only the PIN is asked, once per computer.
+var CD_DEFAULT_URL='https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+var CD_URL='roster_op_url', CD_PIN='roster_op_pin', CD_OFF='roster_cloud_off', CD_EMPAT='roster_emp_at', CD_WINDOW=45;
+var cdVer=0, cdDays={}, cdEmp=null, cdDirty={}, cdDirtyEmp=false, cdInflight=false, cdAgain=false, cdTimer=null, cdLive=false, cdPending=false, cdPolling=false;
+function cdLs(k){ try{ return localStorage.getItem(k)||''; }catch(e){ return ''; } }
+function cdSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function cdDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+// Always use the built-in Onboard address (an old or wrong address saved earlier is replaced).
+try{ localStorage.setItem('roster_op_url',CD_DEFAULT_URL); }catch(e){}
+function cdOn(){ return cdLive && cdLs(CD_OFF)!=='1'; }
+function cdStatus(t){ var b=document.getElementById('cloudBtn'); if(b) b.textContent=t; }
+function cdCall(body){
+  return fetch(cdLs(CD_URL),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({pin:cdLs(CD_PIN)},body))}).then(function(r){ return r.json(); });
+}
+function cdMarkDirty(date){ cdDirty[date]=Date.now(); cdSchedule(); }
+function cdMarkEmp(){ cdSet(CD_EMPAT,String(Date.now())); cdDirtyEmp=true; cdSchedule(); }
+function cdSchedule(){
+  if(!cdOn()){ if(cdLs(CD_OFF)==='1') cdStatus('☁️ Off (this device only)'); return; }
+  cdStatus('☁️ Saving…');
+  clearTimeout(cdTimer); cdTimer=setTimeout(function(){ cdPush(0); },800);
+}
+function cdWindowStart(){ var d=new Date(); d.setDate(d.getDate()-CD_WINDOW); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function cdBuild(dates){
+  var from=cdWindowStart(), days={};
+  Object.keys(cdDays).forEach(function(k){ if(k>=from) days[k]=cdDays[k]; });
+  dates.forEach(function(k){ var raw=null; try{ raw=JSON.parse(localStorage.getItem(LS_PREFIX+k)); }catch(e){} if(raw && k>=from) days[k]=raw; });
+  return { days:days, emp:{ custom:getCustomEmployees(), hidden:getHiddenDefaults(), at:Number(cdLs(CD_EMPAT))||0 } };
+}
+function cdPush(tries){
+  if(!cdOn()) return;
+  if(cdInflight){ cdAgain=true; return; }
+  var dates=Object.keys(cdDirty), snap={}, empFlag=cdDirtyEmp;
+  if(!dates.length && !empFlag) return;
+  dates.forEach(function(k){ snap[k]=cdDirty[k]; });
+  cdInflight=true;
+  var payload=cdBuild(dates);
+  var done=function(){ cdInflight=false; if(cdAgain||Object.keys(cdDirty).length&&!cdPending){ cdAgain=false; if(Object.keys(cdDirty).length||cdDirtyEmp) cdSchedule(); } };
+  cdCall({kind:'dutysave',expectedVersion:cdVer,state:payload}).then(function(res){
+    if(res.ok){
+      cdVer=res.version; cdDays=payload.days; cdEmp=payload.emp;
+      dates.forEach(function(k){ if(cdDirty[k]===snap[k]) delete cdDirty[k]; });
+      if(empFlag) cdDirtyEmp=false;
+      cdStatus('☁️ Saved'); done();
+    } else if(res.conflict && tries<3){
+      // somebody saved in between: take their other days, keep ours, save again
+      cdPull().then(function(r){ cdInflight=false; if(r&&r.changed) cdApply(r.changed); cdPush(tries+1); }).catch(function(){ cdInflight=false; cdStatus('📴 Offline — saved on this device'); });
+    } else if(res.error==='auth'){ cdDel(CD_PIN); cdInflight=false; cdStatus('🔒 PIN rejected — reload'); }
+    else { cdStatus('❌ Cloud save failed'); cdInflight=false; }
+  }).catch(function(){ cdInflight=false; cdStatus('📴 Offline — saved on this device'); });
+}
+// loads the cloud copy; days the user changed here and not yet saved are never overwritten
+function cdPull(){
+  return cdCall({kind:'dutyload'}).then(function(res){
+    if(res.error==='auth') return {auth:true};
+    if(!res.ok) throw new Error('load');
+    cdVer=res.version;
+    var data=res.data||{days:{},emp:null};
+    cdDays=data.days||{}; cdEmp=data.emp||null;
+    var changed=[], empChanged=false;
+    Object.keys(cdDays).forEach(function(k){
+      if(cdDirty[k]) return;
+      var r=cdDays[k], local=null;
+      try{ local=JSON.parse(localStorage.getItem(LS_PREFIX+k)); }catch(e){}
+      var lt=local && local._savedAt!=null ? local._savedAt : (local?-1:-2);
+      if(!local || (r._savedAt||0)>lt){ localStorage.setItem(LS_PREFIX+k,JSON.stringify(r)); changed.push(k); }
+    });
+    if(cdEmp && !cdDirtyEmp && (cdEmp.at||0)>(Number(cdLs(CD_EMPAT))||0)){
+      localStorage.setItem(LS_EMP_CUSTOM,JSON.stringify(cdEmp.custom||[])); localStorage.setItem(LS_EMP_HIDDEN,JSON.stringify(cdEmp.hidden||[])); cdSet(CD_EMPAT,String(cdEmp.at)); empChanged=true;
+    }
+    return { ok:true, changed:changed, emp:empChanged };
+  });
+}
+function cdBusy(){
+  var a=document.activeElement;
+  if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !a.closest('#cdOverlay')) return true;
+  return !!document.querySelector('.overlay.show, #cdOverlay.show');
+}
+function cdApply(changed){
+  if(changed.indexOf(state.date)>=0){
+    if(cdBusy()){ cdPending=true; return; }
+    cdPending=false;
+    state.data=ensureDayLoaded(state.date);
+    if(!getSection(state.section)) state.section=state.data.sections[0]?state.data.sections[0].id:null;
+    renderAll();
+    if(window.cdAfterApply) window.cdAfterApply();
+  }
+}
+async function cdPoll(){
+  if(!cdOn() || cdPolling) return;
+  cdPolling=true;
+  try{
+    if(Object.keys(cdDirty).length||cdDirtyEmp){ if(!cdInflight) cdPush(0); return; }
+    if(cdInflight) return;
+    if(cdPending && !cdBusy()){ cdApply([state.date]); }
+    var v=await cdCall({kind:'dutyversion'});
+    if(!v.ok || v.version<=cdVer){ if(v.ok) cdStatus('☁️ Saved'); return; }
+    if(Object.keys(cdDirty).length) return;
+    var r=await cdPull();
+    if(r&&r.ok){ if(r.emp) renderEmployeeDatalist(); cdApply(r.changed); cdStatus('☁️ Updated'); }
+  }catch(e){ cdStatus('📴 Offline — saved on this device'); }
+  finally{ cdPolling=false; }
+}
+function cdAsk(msg){
+  return new Promise(function(resolve){
+    var ov=document.getElementById('cdOverlay'), u=document.getElementById('cdUrl'), p=document.getElementById('cdPin');
+    document.getElementById('cdErr').textContent=msg||'';
+    u.value=cdLs(CD_URL); p.value='';
+    u.value=CD_DEFAULT_URL; u.style.display='none';
+    ov.classList.add('show'); setTimeout(function(){ (u.value?p:u).focus(); },50);
+    function fin(v){ ov.classList.remove('show'); resolve(v); }
+    document.getElementById('cdGo').onclick=function(){
+      var url=u.value.trim()||CD_DEFAULT_URL, pin=p.value.trim();
+      if(!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)){ document.getElementById('cdErr').textContent='Paste the link that ends with /exec'; return; }
+      if(!pin) return;
+      fin({url:url,pin:pin});
+    };
+    p.onkeydown=function(e){ if(e.key==='Enter') document.getElementById('cdGo').onclick(); };
+    document.getElementById('cdSkip').onclick=function(){ fin({skip:true}); };
+  });
+}
+async function cdInit(){
+  var btn=document.getElementById('cloudBtn');
+  btn.onclick=function(){
+    if(cdLs(CD_OFF)==='1'){ cdDel(CD_OFF); location.reload(); return; }
+    if(cdOn()){ cdStatus('☁️ Checking…'); cdPoll(); }
+  };
+  if(cdLs(CD_OFF)==='1'){ cdStatus('☁️ Off — click to connect'); return; }
+  var msg='', hadCreds=!!(cdLs(CD_URL)&&cdLs(CD_PIN));
+  while(true){
+    if(!cdLs(CD_URL)||!cdLs(CD_PIN)){
+      var a=await cdAsk(msg);
+      if(a.skip){ cdSet(CD_OFF,'1'); cdStatus('☁️ Off — click to connect'); return; }
+      cdSet(CD_URL,a.url); cdSet(CD_PIN,a.pin); hadCreds=false;
+    }
+    try{
+      var r=await cdPull();
+      if(r.auth){ cdDel(CD_PIN); msg='Incorrect PIN.'; hadCreds=false; continue; }
+      cdLive=true;
+      // first connection from this computer: send what only exists here
+      var from=cdWindowStart();
+      listSavedDates().forEach(function(k){
+        if(k<from||cdDirty[k]) return;
+        var raw=null; try{ raw=JSON.parse(localStorage.getItem(LS_PREFIX+k)); }catch(e){}
+        if(!raw || raw._savedAt===0) return;
+        if(!cdDays[k]){ if(!raw._savedAt){ raw._savedAt=Date.now(); localStorage.setItem(LS_PREFIX+k,JSON.stringify(raw)); } cdDirty[k]=Date.now(); }
+      });
+      if(!cdEmp && (getCustomEmployees().length||getHiddenDefaults().length)){ cdSet(CD_EMPAT,String(Date.now())); cdDirtyEmp=true; }
+      cdStatus('☁️ Connected');
+      if(Object.keys(cdDirty).length||cdDirtyEmp) cdSchedule();
+      break;
+    }catch(e){
+      if(hadCreds){ cdStatus('📴 Offline — using this device'); cdLive=true; setInterval(cdPoll,8000); return; }
+      cdDel(CD_PIN); msg="Can't reach the backend. Check your connection and try again.";
+    }
+  }
+  setInterval(cdPoll,8000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) cdPoll(); });
+  window.addEventListener('focus',cdPoll);
+}
+
 /* ============== INIT ============== */
-renderEmployeeDatalist();
-setDate(todayStr());
+cdInit().then(function(){
+  renderEmployeeDatalist();
+  setDate(todayStr());
+});
 
 /* ============== ONBOARD PATROL LINK ============== */
 (function(){
-  var K_URL='roster_op_url', K_PIN='roster_op_pin';
+  var K_URL='roster_op_url', K_PIN='roster_op_pin', K_READY='roster_ready_';
+  var URL_RE=/^https:\/\/script\.google\.com\/.+\/exec/;
   function get(k){ try{return localStorage.getItem(k)||'';}catch(e){return '';} }
   function set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }
-  document.getElementById('opSendBtn').addEventListener('click', async function(){
-    var url=get(K_URL), pin=get(K_PIN);
-    if(!url || !/^https:\/\/script\.google\.com\/.+\/exec/.test(url)){
-      url=(prompt('Onboard Patrol backend URL (ends with /exec):', url)||'').trim();
-      if(!url) return;
-      if(!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)){ toast('That is not an /exec URL'); return; }
-    }
-    if(!pin){
-      pin=(prompt('Supervisor PIN:','')||'').trim();
-      if(!pin) return;
-    }
+  function del(k){ try{localStorage.removeItem(k);}catch(e){} }
+  var readyBtn=document.getElementById('readyBtn'), sentAt={}, timer=null, sending=false, again=false;
+
+  function isReady(d){ var x=loadDay(d); return !!(x&&x.ready) || get(K_READY+d)==='1'; }
+  function paintReady(){
+    var on=isReady(state.date);
+    readyBtn.classList.toggle('on',on);
+    readyBtn.textContent=on?('✅ Ready'+(sentAt[state.date]?' · sent '+sentAt[state.date]:' · auto-sending')):'☐ Mark day as ready';
+  }
+  function collect(){
     var posts=[];
     state.data.sections.forEach(function(sec){
       sec.posts.forEach(function(p){
@@ -1104,20 +1294,60 @@ setDate(todayStr());
         if(staff.length) posts.push({post:p.name||'', radio:p.radio||'', names:staff.map(function(s){return s.name;}), staff:staff});
       });
     });
-    if(!posts.length){ toast('No names to send'); return; }
-    toast('Sending…');
+    return posts;
+  }
+  function creds(ask){
+    var url=get(K_URL), pin=get(K_PIN);
+    if(!ask) return (URL_RE.test(url)&&pin)?{url:url,pin:pin}:null;
+    if(!URL_RE.test(url)){
+      url=(prompt('Onboard Patrol backend URL (ends with /exec):', url)||'').trim();
+      if(!url) return null;
+      if(!URL_RE.test(url)){ toast('That is not an /exec URL'); return null; }
+    }
+    if(!pin){ pin=(prompt('Supervisor PIN:','')||'').trim(); if(!pin) return null; }
+    return {url:url,pin:pin};
+  }
+  // Sends the day shown. manual = button press (asks for missing URL/PIN, reports in a toast).
+  async function sendDay(manual){
+    var c=creds(manual); if(!c) return;
+    var date=state.date, posts=collect();
+    if(manual && !posts.length){ toast('No names to send'); return; }
+    if(sending){ again=true; return; }
+    sending=true;
+    if(manual) toast('Sending…');
     try{
-      await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
-        body:JSON.stringify({kind:'crew',pin:pin,date:state.date,posts:posts})});
-      var r=await fetch(url+'?format=crewcheck&pin='+encodeURIComponent(pin)+'&date='+encodeURIComponent(state.date));
+      await fetch(c.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({kind:'crew',pin:c.pin,date:date,posts:posts})});
+      var r=await fetch(c.url+'?format=crewcheck&pin='+encodeURIComponent(c.pin)+'&date='+encodeURIComponent(date));
       var j=await r.json();
-      if(j.error){ set(K_PIN,''); toast('Error: '+j.error); return; }
-      set(K_URL,url); set(K_PIN,pin);
+      if(j.error){ set(K_PIN,''); toast('Onboard: '+j.error+' - press Send once to enter the PIN again'); return; }
+      set(K_URL,c.url); set(K_PIN,c.pin);
+      sentAt[date]=new Date().toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
       var rows=j.rows||[], tm={}, un=[];
       rows.forEach(function(r){ if(r.team) tm[r.team]=1; else un.push(r.post||'?'); });
-      toast(Object.keys(tm).length+' teams matched'+(un.length?'; unmatched: '+un.join(', '):'')+' ('+state.date+')');
-    }catch(e){ toast('Could not confirm — check connection'); }
+      if(manual||un.length) toast(Object.keys(tm).length+' teams matched'+(un.length?'; unmatched: '+un.join(', '):'')+' ('+date+')');
+      paintReady();
+    }catch(e){ toast('Could not reach Onboard — will retry on the next change'); }
+    finally{ sending=false; if(again){ again=false; schedule(); } }
+  }
+  function schedule(){
+    if(!isReady(state.date)) return;
+    clearTimeout(timer);
+    timer=setTimeout(function(){ sendDay(false); },1500);
+  }
+  document.getElementById('opSendBtn').addEventListener('click',function(){ sendDay(true); });
+  readyBtn.addEventListener('click',function(){
+    if(isReady(state.date)){ del(K_READY+state.date); state.data.ready=false; persist(); toast('Day no longer ready — changes will not be sent'); paintReady(); return; }
+    if(!creds(true)) return;
+    state.data.ready=true; persist(); paintReady(); sendDay(true);
   });
+  // every change of the day re-sends it (only for days marked ready)
+  var basePersist=persist;
+  persist=function(){ basePersist(); schedule(); };
+  var baseSetDate=setDate;
+  setDate=function(d){ var r=baseSetDate.apply(this,arguments); paintReady(); return r; };
+  window.cdAfterApply=paintReady;
+  paintReady();
 })();
 </script>
 </body>
