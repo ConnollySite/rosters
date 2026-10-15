@@ -239,7 +239,7 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
   <div class="wrap">
     <div class="brand-row">
       <div>
-        <h1>Duty Roster <small style="font-size:11px;opacity:.6;font-weight:400">v13-10b</small></h1>
+        <h1>Duty Roster <small style="font-size:11px;opacity:.6;font-weight:400">v15-10</small></h1>
         <div class="sub">BVN Security · Connolly</div>
       </div>
       <button class="icon-btn" id="copyPrevBtn" title="Copy previous saved day">⧉</button>
@@ -489,16 +489,11 @@ function findPreviousDate(beforeDate){
   const all = listSavedDates().filter(function(d){ return d<beforeDate; });
   return all.length ? all[all.length-1] : null;
 }
+// A new day starts as a full copy of the previous day (names, times, breaks, notes): you only edit what changed.
+// Only the "ready" flag and the sync stamp are not carried over.
 function blankCopy(dayData){
   const clone = JSON.parse(JSON.stringify(dayData));
   delete clone.ready; delete clone._savedAt;
-  clone.sections.forEach(function(sec){
-    sec.posts.forEach(function(p){
-      p.time='';
-      p.staff.forEach(function(s){ s.name=''; s.note=''; });
-      p.breaks.forEach(function(b){ b.value=''; });
-    });
-  });
   return clone;
 }
 function ensureDayLoaded(dateStr){
@@ -507,7 +502,7 @@ function ensureDayLoaded(dateStr){
     const prev = findPreviousDate(dateStr);
     if(prev){
       d = blankCopy(loadDay(prev));
-      toast('New day started from ' + prev + ' structure');
+      toast('New day copied from ' + prev + ' - edit only what changed');
     } else {
       d = seedTemplate();
     }
@@ -1290,7 +1285,7 @@ cdInit().then(function(){
     state.data.sections.forEach(function(sec){
       sec.posts.forEach(function(p){
         var staff=(p.staff||[]).filter(function(s){return isRealName(s.name);})
-          .map(function(s){return {name:s.name.trim(), code:(s.code||'').trim()};});
+          .map(function(s){return {name:s.name.trim(), code:(s.code||'').trim(), note:(s.note||'').trim()};});
         if(staff.length) posts.push({post:p.name||'', radio:p.radio||'', names:staff.map(function(s){return s.name;}), staff:staff});
       });
     });
