@@ -426,6 +426,7 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
     </div>
     <input type="file" id="csvFileInput" accept=".csv" style="display:none;" />
     <button id="importCsvBtn" class="btn btn-dark" style="width:100%;">📄 Import CSV</button>
+    <button id="copyNamesBtn" class="btn btn-green" style="width:100%;">📋 Copy names list (for Profiles)</button>
     <button id="modalCloseBtn" class="btn btn-dark" style="width:100%;">Close</button>
   </div>
 </div>
@@ -2341,6 +2342,12 @@ document.getElementById('modalAddBtn').addEventListener('click', () => {
   }
 });
 document.getElementById('modalEmpInput').addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('modalAddBtn').click(); });
+document.getElementById('copyNamesBtn').addEventListener('click', function(){
+  const txt = (employees || []).join('\n'), b = this;
+  const done = () => { b.textContent = '✓ ' + (employees || []).length + ' names copied'; setTimeout(() => { b.textContent = '📋 Copy names list (for Profiles)'; }, 2500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => prompt('Copy this list:', txt));
+  else prompt('Copy this list:', txt);
+});
 document.getElementById('importCsvBtn').addEventListener('click', () => document.getElementById('csvFileInput').click());
 document.getElementById('csvFileInput').addEventListener('change', function(e) {
   const file = e.target.files[0]; if (!file) return;
