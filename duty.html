@@ -505,18 +505,31 @@ function blankCopy(dayData){
   delete clone.ready; delete clone._savedAt;
   return clone;
 }
+// Latest earlier day that was really filled in. Days that were only opened (auto-copied, never edited, _savedAt===0)
+// are skipped: they are placeholders and may hold an old snapshot of the roster.
+function findPreviousRealDate(beforeDate){
+  const all = listSavedDates().filter(function(d){ return d<beforeDate; });
+  for(let i=all.length-1;i>=0;i--){
+    const x = loadDay(all[i]);
+    if(x && x._savedAt!==0) return all[i];
+  }
+  return all.length ? all[all.length-1] : null;
+}
+// A day nobody has edited yet is always rebuilt from the latest real day, so times, breaks, names and notes
+// are always "as the day before" — even if the day was opened earlier (browsing ahead) and yesterday changed since.
+// As soon as anything is typed the day becomes real and is never touched again.
 function ensureDayLoaded(dateStr){
   let d = loadDay(dateStr);
-  if(!d){
-    const prev = findPreviousDate(dateStr);
-    if(prev){
-      d = blankCopy(loadDay(prev));
-      toast('New day copied from ' + prev + ' - edit only what changed');
-    } else {
-      d = seedTemplate();
-    }
-    saveDay(dateStr, d, true);
+  if(d && d._savedAt!==0) return d;
+  const prev = findPreviousRealDate(dateStr);
+  const src = prev ? loadDay(prev) : null;
+  if(src){
+    if(!d) toast('New day copied from ' + prev + ' - edit only what changed');
+    d = blankCopy(src);
+  } else if(!d){
+    d = seedTemplate();
   }
+  saveDay(dateStr, d, true);
   return d;
 }
 function persist(){ saveDay(state.date, state.data); }
@@ -824,16 +837,20 @@ document.getElementById('createSectionBtn').addEventListener('click', function()
 
 /* ============== DATE NAV ============== */
 datePick.addEventListener('change', function(){ setDate(datePick.value); });
+// Local-date string (toISOString would convert to UTC and shift the day by one in summer time in Ireland)
+function fmtLocalDate(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 document.getElementById('prevDay').addEventListener('click', function(){
   const d = new Date(state.date+'T00:00:00'); d.setDate(d.getDate()-1);
-  setDate(d.toISOString().slice(0,10));
+  setDate(fmtLocalDate(d));
 });
 document.getElementById('nextDay').addEventListener('click', function(){
   const d = new Date(state.date+'T00:00:00'); d.setDate(d.getDate()+1);
-  setDate(d.toISOString().slice(0,10));
+  setDate(fmtLocalDate(d));
 });
 document.getElementById('copyPrevBtn').addEventListener('click', function(){
-  const prev = findPreviousDate(state.date);
+  const prev = findPreviousRealDate(state.date);
   if(!prev){ toast('No earlier saved day found'); return; }
   if(!confirm('Copy staff & break values from ' + prev + ' into ' + state.date + '? This overwrites today\'s entries.')) return;
   const src = loadDay(prev);
@@ -1244,7 +1261,10 @@ function cdBusy(){
   return !!document.querySelector('.overlay.show, #cdOverlay.show');
 }
 function cdApply(changed){
-  if(changed.indexOf(state.date)>=0){
+  // also refresh an untouched day when an earlier day changed in the cloud, so it keeps mirroring the day before
+  var cur=null; try{ cur=JSON.parse(localStorage.getItem(LS_PREFIX+state.date)); }catch(e){}
+  var stale = !!(cur && cur._savedAt===0 && changed.some(function(k){ return k<state.date; }));
+  if(changed.indexOf(state.date)>=0 || stale){
     if(cdBusy()){ cdPending=true; return; }
     cdPending=false;
     state.data=ensureDayLoaded(state.date);
