@@ -117,12 +117,6 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
   font-size:13px;font-family:inherit;color:var(--ink);font-weight:700;
 }
 .mini-field input:focus{outline:none;border-color:var(--accent);background:#fff;}
-.time-pick{
-  width:100%;margin-top:4px;border:1.5px dashed var(--line);border-radius:8px;background:#fff;
-  padding:5px 6px;font-size:11px;font-weight:700;color:var(--sub);font-family:inherit;
-}
-.time-pick:focus{outline:none;border-color:var(--accent);}
-.hdr-btns{display:flex;gap:6px;}
 
 .staff-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
 .staff-row{display:flex;gap:6px;align-items:flex-start;}
@@ -248,10 +242,7 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
         <h1>Duty Roster <small style="font-size:11px;opacity:.6;font-weight:400">v15-10</small></h1>
         <div class="sub">BVN Security · Connolly</div>
       </div>
-      <div class="hdr-btns">
-        <button class="icon-btn" id="copyWeekBtn" title="Copy same weekday last week" style="font-size:11px;font-weight:800;">7d</button>
-        <button class="icon-btn" id="copyPrevBtn" title="Copy previous saved day">⧉</button>
-      </div>
+      <button class="icon-btn" id="copyPrevBtn" title="Copy previous saved day">⧉</button>
     </div>
     <div class="date-row">
       <button class="date-nav" id="prevDay">‹</button>
@@ -505,31 +496,18 @@ function blankCopy(dayData){
   delete clone.ready; delete clone._savedAt;
   return clone;
 }
-// Latest earlier day that was really filled in. Days that were only opened (auto-copied, never edited, _savedAt===0)
-// are skipped: they are placeholders and may hold an old snapshot of the roster.
-function findPreviousRealDate(beforeDate){
-  const all = listSavedDates().filter(function(d){ return d<beforeDate; });
-  for(let i=all.length-1;i>=0;i--){
-    const x = loadDay(all[i]);
-    if(x && x._savedAt!==0) return all[i];
-  }
-  return all.length ? all[all.length-1] : null;
-}
-// A day nobody has edited yet is always rebuilt from the latest real day, so times, breaks, names and notes
-// are always "as the day before" — even if the day was opened earlier (browsing ahead) and yesterday changed since.
-// As soon as anything is typed the day becomes real and is never touched again.
 function ensureDayLoaded(dateStr){
   let d = loadDay(dateStr);
-  if(d && d._savedAt!==0) return d;
-  const prev = findPreviousRealDate(dateStr);
-  const src = prev ? loadDay(prev) : null;
-  if(src){
-    if(!d) toast('New day copied from ' + prev + ' - edit only what changed');
-    d = blankCopy(src);
-  } else if(!d){
-    d = seedTemplate();
+  if(!d){
+    const prev = findPreviousDate(dateStr);
+    if(prev){
+      d = blankCopy(loadDay(prev));
+      toast('New day copied from ' + prev + ' - edit only what changed');
+    } else {
+      d = seedTemplate();
+    }
+    saveDay(dateStr, d, true);
   }
-  saveDay(dateStr, d, true);
   return d;
 }
 function persist(){ saveDay(state.date, state.data); }
@@ -572,7 +550,6 @@ function setDate(dateStr){
 }
 
 function renderAll(){
-  shiftPresetCache = null;
   renderTabs();
   renderPosts();
   validateDuplicates();
@@ -625,42 +602,7 @@ function renderPosts(){
   renderSummary();
 }
 
-/* Quick-pick shift times: learned from every saved day on this device (which includes the days pulled from the cloud),
-   so the list is the same on every device without needing any backend change. A time must have been used on 2+ days/posts
-   (or be on the day open now) to be offered, so one-off typos do not pollute the list. */
-let shiftPresetCache = null;
-function normTime(t){ return String(t||'').replace(/\s+/g,' ').trim(); }
-function computeShiftPresets(){
-  const counts = {};
-  function scan(data){
-    if(!data || !data.sections) return;
-    data.sections.forEach(function(sec){
-      (sec.posts||[]).forEach(function(p){
-        const t = normTime(p.time);
-        if(t) counts[t] = (counts[t]||0)+1;
-      });
-    });
-  }
-  listSavedDates().forEach(function(d){ scan(loadDay(d)); });
-  const current = {};
-  if(state && state.data && state.data.sections){
-    state.data.sections.forEach(function(sec){
-      (sec.posts||[]).forEach(function(p){ const t = normTime(p.time); if(t){ current[t] = true; if(!counts[t]) counts[t] = 1; } });
-    });
-  }
-  return Object.keys(counts)
-    .filter(function(t){ return counts[t] >= 2 || current[t]; })
-    .sort(function(a,b){ return (counts[b]-counts[a]) || a.localeCompare(b); });
-}
-function getShiftPresets(){
-  if(!shiftPresetCache) shiftPresetCache = computeShiftPresets();
-  return shiftPresetCache;
-}
-
 function renderPostCard(p, styleVars){
-  const presetOpts = '<option value="">Pick a shift time…</option>' + getShiftPresets().map(function(t){
-    return '<option value="'+escapeHtml(t)+'"'+(normTime(p.time)===t?' selected':'')+'>'+escapeHtml(t)+'</option>';
-  }).join('');
   const staffHtml = p.staff.map(function(s,i){
     return '<div class="staff-row">'+
       '<div class="staff-main">'+
@@ -699,8 +641,7 @@ function renderPostCard(p, styleVars){
     '</div>'+
     '<div class="post-body">'+
       '<div class="grid2">'+
-        '<div class="mini-field"><label>Shift time</label><input type="text" value="'+escapeHtml(p.time)+'" data-post="'+p.id+'" data-role="time" placeholder="e.g. 16:30 - 00:30">'+
-          '<select class="time-pick" data-post="'+p.id+'" data-role="timePreset">'+presetOpts+'</select></div>'+
+        '<div class="mini-field"><label>Shift time</label><input type="text" value="'+escapeHtml(p.time)+'" data-post="'+p.id+'" data-role="time" placeholder="e.g. 16:30 - 00:30"></div>'+
         '<div class="mini-field"><label>Radio number</label><input type="text" value="'+escapeHtml(p.radio)+'" data-post="'+p.id+'" data-role="radio" placeholder="086 ..."></div>'+
       '</div>'+
       '<div class="staff-list">'+staffHtml+'</div>'+
@@ -759,10 +700,6 @@ postsContainer.addEventListener('change', function(e){
   if(t.getAttribute('data-role')==='badge'){
     const p = findPost(t.getAttribute('data-post'));
     if(p){ p.badge = t.value; persist(); }
-  }
-  if(t.getAttribute('data-role')==='timePreset'){
-    const p = findPost(t.getAttribute('data-post'));
-    if(p && t.value){ p.time = t.value; persist(); renderAll(); }
   }
 });
 
@@ -837,41 +774,20 @@ document.getElementById('createSectionBtn').addEventListener('click', function()
 
 /* ============== DATE NAV ============== */
 datePick.addEventListener('change', function(){ setDate(datePick.value); });
-// Local-date string (toISOString would convert to UTC and shift the day by one in summer time in Ireland)
-function fmtLocalDate(d){
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-}
 document.getElementById('prevDay').addEventListener('click', function(){
   const d = new Date(state.date+'T00:00:00'); d.setDate(d.getDate()-1);
-  setDate(fmtLocalDate(d));
+  setDate(d.toISOString().slice(0,10));
 });
 document.getElementById('nextDay').addEventListener('click', function(){
   const d = new Date(state.date+'T00:00:00'); d.setDate(d.getDate()+1);
-  setDate(fmtLocalDate(d));
+  setDate(d.toISOString().slice(0,10));
 });
 document.getElementById('copyPrevBtn').addEventListener('click', function(){
-  const prev = findPreviousRealDate(state.date);
+  const prev = findPreviousDate(state.date);
   if(!prev){ toast('No earlier saved day found'); return; }
   if(!confirm('Copy staff & break values from ' + prev + ' into ' + state.date + '? This overwrites today\'s entries.')) return;
   const src = loadDay(prev);
   state.data = JSON.parse(JSON.stringify(src));
-  state.data.sections.forEach(function(sec){
-    sec.posts.forEach(function(p){ p.id='p'+Math.random().toString(36).slice(2,10); });
-  });
-  if(!getSection(state.section)) state.section = state.data.sections[0].id;
-  persist(); renderAll();
-  toast('Copied from ' + prev);
-});
-
-/* Copy the same weekday from last week (shift times often follow the weekly pattern, not yesterday's) */
-document.getElementById('copyWeekBtn').addEventListener('click', function(){
-  const d = new Date(state.date+'T00:00:00'); d.setDate(d.getDate()-7);
-  const prev = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  const src = loadDay(prev);
-  if(!src){ toast('No saved day found for ' + prev); return; }
-  if(!confirm('Copy the full roster (times, names, breaks) from ' + prev + ' into ' + state.date + '? This overwrites today\'s entries.')) return;
-  state.data = JSON.parse(JSON.stringify(src));
-  delete state.data.ready; delete state.data._savedAt;
   state.data.sections.forEach(function(sec){
     sec.posts.forEach(function(p){ p.id='p'+Math.random().toString(36).slice(2,10); });
   });
@@ -1261,10 +1177,7 @@ function cdBusy(){
   return !!document.querySelector('.overlay.show, #cdOverlay.show');
 }
 function cdApply(changed){
-  // also refresh an untouched day when an earlier day changed in the cloud, so it keeps mirroring the day before
-  var cur=null; try{ cur=JSON.parse(localStorage.getItem(LS_PREFIX+state.date)); }catch(e){}
-  var stale = !!(cur && cur._savedAt===0 && changed.some(function(k){ return k<state.date; }));
-  if(changed.indexOf(state.date)>=0 || stale){
+  if(changed.indexOf(state.date)>=0){
     if(cdBusy()){ cdPending=true; return; }
     cdPending=false;
     state.data=ensureDayLoaded(state.date);
@@ -1349,7 +1262,7 @@ async function cdInit(){
 /* ============== INIT ============== */
 cdInit().then(function(){
   renderEmployeeDatalist();
-  setDate(todayStr());
+  setDate((location.search.match(/[?&]date=(\d{4}-\d{2}-\d{2})/)||[])[1]||todayStr());
 });
 
 /* ============== ONBOARD PATROL LINK ============== */
