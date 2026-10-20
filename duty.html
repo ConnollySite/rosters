@@ -89,9 +89,9 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
 
 .post{
   background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
-  margin-top:10px;border:1.5px solid var(--line);overflow:hidden;
+  margin-top:8px;border:1.5px solid var(--line);overflow:hidden;
 }
-.post-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--accent-bg);}
+.post-head{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--accent-bg);}
 .status-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--sub);}
 .status-dot.full{background:var(--ok);}
 .status-dot.partial{background:var(--amber);}
@@ -109,8 +109,8 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
 .post-del{flex:none;width:26px;height:26px;border-radius:50%;border:none;background:transparent;color:var(--red);font-size:15px;cursor:pointer;}
 .post-del:active{background:var(--red-bg);}
 
-.post-body{padding:10px 12px 12px;}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+.post-body{padding:6px 10px 8px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:5px;}
 .mini-field label{display:block;font-size:9.5px;font-weight:800;color:var(--sub);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;}
 .mini-field input{
   width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:8px 8px;
@@ -118,39 +118,39 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
 }
 .mini-field input:focus{outline:none;border-color:var(--accent);background:#fff;}
 
-.staff-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
-.staff-row{display:flex;gap:6px;align-items:flex-start;}
+.staff-list{display:flex;flex-direction:column;gap:4px;margin-bottom:2px;}
+.staff-row{display:flex;gap:5px;align-items:center;}
 .staff-main{flex:1;min-width:0;}
 .staff-name{
-  width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:9px 8px;
+  width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:6px 8px;
   font-size:13.5px;font-family:inherit;color:var(--ink);font-weight:700;
 }
 .staff-name.dup{border-color:var(--red);background:var(--red-bg);color:var(--red);}
 .staff-name:focus{outline:none;border-color:var(--accent);background:#fff;}
 .staff-code{
-  flex:none;width:88px;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:9px 6px;
+  flex:none;width:88px;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:6px 5px;
   font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--navy-2);text-align:center;
 }
 .staff-code:focus{outline:none;border-color:var(--accent);background:#fff;}
 .staff-note{
-  width:100%;margin-top:4px;border:1.5px dashed var(--line);border-radius:7px;background:#fff;
-  padding:5px 7px;font-size:11px;font-family:inherit;color:var(--red);font-style:italic;
+  width:100%;margin-top:3px;border:1.5px dashed var(--line);border-radius:7px;background:#fff;
+  padding:3px 7px;font-size:11px;font-family:inherit;color:var(--red);font-style:italic;
 }
 .staff-note::placeholder{color:#B7C1CF;font-style:italic;}
-.staff-rm{flex:none;width:30px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--red);font-size:15px;cursor:pointer;}
+.staff-rm{flex:none;width:26px;height:26px;border-radius:8px;border:1.5px solid var(--line);background:#fff;color:var(--red);font-size:15px;cursor:pointer;}
 .staff-rm:active{background:var(--red-bg);}
 
 .row-small-btn{
-  display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:800;color:var(--accent-deep);
-  background:var(--accent-bg);border:1.5px dashed var(--accent);border-radius:8px;padding:6px 10px;cursor:pointer;
+  display:inline-block;font-size:12px;font-weight:800;color:var(--accent-deep);
+  background:none;border:none;padding:3px 2px;cursor:pointer;
 }
-.row-small-btn:active{opacity:.7;}
-.btnrow{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.row-small-btn:active{opacity:.6;}
+.btnrow{display:flex;gap:8px;margin:0 0 4px;flex-wrap:wrap;}
 
-.break-list{display:flex;flex-direction:column;gap:6px;}
-.break-row{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;}
+.break-list{display:flex;flex-direction:column;gap:4px;}
+.break-row{display:grid;grid-template-columns:1fr 1fr auto;gap:5px;align-items:center;}
 .break-row input{
-  width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:8px 7px;
+  width:100%;border:1.5px solid var(--line);border-radius:8px;background:#F8FAFC;padding:5px 7px;
   font-size:12px;font-family:inherit;color:var(--ink);font-weight:600;
 }
 .break-row input:first-child{font-weight:800;color:var(--navy);}
@@ -489,11 +489,16 @@ function findPreviousDate(beforeDate){
   const all = listSavedDates().filter(function(d){ return d<beforeDate; });
   return all.length ? all[all.length-1] : null;
 }
-// A new day starts as a full copy of the previous day (names, times, breaks, notes): you only edit what changed.
-// Only the "ready" flag and the sync stamp are not carried over.
+// A new day starts as a copy of the previous day (posts, shift times, radios, breaks, number of slots).
+// NOT carried over: names and notes (the code belongs to the slot and is kept), which start blank, plus the "ready" flag and the sync stamp.
 function blankCopy(dayData){
   const clone = JSON.parse(JSON.stringify(dayData));
   delete clone.ready; delete clone._savedAt;
+  (clone.sections||[]).forEach(function(sec){
+    (sec.posts||[]).forEach(function(p){
+      (p.staff||[]).forEach(function(s){ s.name=''; s.note=''; });
+    });
+  });
   return clone;
 }
 function ensureDayLoaded(dateStr){
@@ -502,7 +507,7 @@ function ensureDayLoaded(dateStr){
     const prev = findPreviousDate(dateStr);
     if(prev){
       d = blankCopy(loadDay(prev));
-      toast('New day copied from ' + prev + ' - edit only what changed');
+      toast('New day copied from ' + prev + ' - names left blank');
     } else {
       d = seedTemplate();
     }
@@ -607,7 +612,7 @@ function renderPostCard(p, styleVars){
     return '<div class="staff-row">'+
       '<div class="staff-main">'+
         '<input class="staff-name" type="text" list="empList" placeholder="Name" value="'+escapeHtml(s.name)+'" data-post="'+p.id+'" data-role="staffName" data-idx="'+i+'">'+
-        '<input class="staff-note" type="text" placeholder="Note (optional)" value="'+escapeHtml(s.note)+'" data-post="'+p.id+'" data-role="staffNote" data-idx="'+i+'">'+
+        (i===Math.min(1,p.staff.length-1) ? '<input class="staff-note" type="text" placeholder="Note (optional)" value="'+escapeHtml(s.note)+'" data-post="'+p.id+'" data-role="staffNote" data-idx="'+i+'">' : '')+
       '</div>'+
       '<input class="staff-code mono" type="text" placeholder="Code" value="'+escapeHtml(s.code)+'" data-post="'+p.id+'" data-role="staffCode" data-idx="'+i+'">'+
       '<button class="staff-rm" data-post="'+p.id+'" data-role="rmStaff" data-idx="'+i+'" title="Remove slot">✕</button>'+
@@ -647,7 +652,7 @@ function renderPostCard(p, styleVars){
       '<div class="staff-list">'+staffHtml+'</div>'+
       '<div class="btnrow"><div class="row-small-btn" data-post="'+p.id+'" data-role="addStaff">+ Add name slot</div></div>'+
       '<div class="break-list">'+breaksHtml+'</div>'+
-      '<div class="btnrow" style="margin-top:8px;margin-bottom:0;"><div class="row-small-btn" data-post="'+p.id+'" data-role="addBreak">+ Add break row</div></div>'+
+      '<div class="btnrow" style="margin-top:2px;margin-bottom:0;"><div class="row-small-btn" data-post="'+p.id+'" data-role="addBreak">+ Add break row</div></div>'+
     '</div>'+
   '</div>');
 }
