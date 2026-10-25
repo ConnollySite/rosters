@@ -1291,7 +1291,9 @@ cdInit().then(function(){
       sec.posts.forEach(function(p){
         var staff=(p.staff||[]).filter(function(s){return isRealName(s.name);})
           .map(function(s){return {name:s.name.trim(), code:(s.code||'').trim(), note:(s.note||'').trim()};});
-        if(staff.length) posts.push({post:p.name||'', radio:p.radio||'', names:staff.map(function(s){return s.name;}), staff:staff});
+        // supervisor post: also send every phone typed in the slots (name or code) and the radio field, for the teams' Emergency Numbers
+        var phones=/supervisor/i.test(p.name||'') ? (p.staff||[]).reduce(function(acc,s){ return acc.concat([s.name||'', s.code||'']); },[]).concat([p.radio||'']).map(function(x){return String(x).trim();}).filter(function(x){return /^[+0-9][0-9 ()-]{6,}$/.test(x);}) : [];
+        if(staff.length || phones.length) posts.push({post:p.name||'', radio:p.radio||'', names:staff.map(function(s){return s.name;}), staff:staff, phones:phones});
       });
     });
     return posts;
