@@ -299,7 +299,8 @@ textarea.import-paste { width: 100%; height: 140px; font-family: monospace; font
         <div class="form-row"><label>To</label><input type="date" id="rpTo"></div>
       </div>
       <div class="form-row"><label>Group</label><select id="rpGroup"></select></div>
-      <div class="form-row"><label style="display:flex;gap:8px;align-items:center;font-weight:normal;"><input type="checkbox" id="rpDays" checked style="width:auto;"> Include a day-by-day list (who is off each day)</label></div>
+      <div class="form-row"><label>Staff on the page</label><select id="rpWho"><option value="hol">Only staff with holidays in these dates</option><option value="all">All staff</option></select></div>
+      <div class="form-row"><label style="display:flex;gap:8px;align-items:center;font-weight:normal;"><input type="checkbox" id="rpDays" style="width:auto;"> Also add a list of the holidays (extra page)</label></div>
       <div id="rpInfo" class="hint-text"></div>
     </div>
     <div class="modal-foot">
@@ -1311,77 +1312,144 @@ function withJsPDF(cb) {
   s.onerror = () => alert('Could not load the PDF maker (internet needed).');
   document.head.appendChild(s);
 }
-function buildHolidayPdf(JsPDF, from, to, group, withDays) {
+function buildHolidayPdf(JsPDF, from, to, group, withList, who) {
   const data = rpCollect(from, to, group);
-  const doc = new JsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210, M = 14, CW = W - 2 * M;
-  let y = 0, page = 1;
-  const navy = [14, 35, 64], sub = [91, 107, 132], ink = [22, 35, 58], line = [221, 228, 236];
-  const header = () => {
-    doc.setFillColor(...navy); doc.rect(0, 0, W, 24, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text('Holiday Report', M, 11);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('Bidvest Noonan · Connolly Site', M, 17);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text(dmyISO(from) + '  –  ' + dmyISO(to), W - M, 11, { align: 'right' });
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(group ? 'Group: ' + group : 'All groups', W - M, 17, { align: 'right' });
-    y = 32;
-  };
+  const doc = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+  const W = 297, H = 210, M = 8;
+  const navy = [14, 35, 64], sub = [91, 107, 132], ink = [22, 35, 58], line = [210, 218, 228];
+  let page = 0;
   const footer = () => {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150, 160, 175);
-    doc.text('Generated ' + new Date().toLocaleString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }), M, 290);
-    doc.text('Page ' + page, W - M, 290, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(150, 160, 175);
+    doc.text('Generated ' + new Date().toLocaleString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }), M, H - 4);
+    doc.text('Page ' + page, W - M, H - 4, { align: 'right' });
   };
-  const newPage = () => { footer(); doc.addPage(); page++; header(); };
-  const need = h => { if (y + h > 280) { newPage(); return true; } return false; };
-  header();
-  // summary
-  const people = new Set(data.rows.map(r => r.name)).size;
-  const personDays = data.byDay.reduce((a, d) => a + d.names.length, 0);
-  const busiest = data.byDay.reduce((best, d) => (!best || d.names.length > best.names.length) ? d : best, null);
-  const boxes = [['Staff on holiday', String(people)], ['Holiday entries', String(data.rows.length)], ['Days off (total)', String(personDays)],
-    ['Busiest day', busiest && busiest.names.length ? dmyISO(busiest.date).slice(0, 5) + ' (' + busiest.names.length + ')' : '—']];
-  const bw = (CW - 9) / 4;
-  boxes.forEach((b, i) => {
-    const x = M + i * (bw + 3);
-    doc.setFillColor(238, 242, 246); doc.roundedRect(x, y, bw, 16, 2, 2, 'F');
-    doc.setTextColor(...sub); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text(b[0].toUpperCase(), x + 3, y + 5.5);
-    doc.setTextColor(...ink); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text(b[1], x + 3, y + 13);
-  });
-  y += 24;
-  // table helper
-  const table = (title, cols, rows) => {
-    need(20);
-    doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text(title, M, y); y += 5;
-    const head = () => {
-      doc.setFillColor(...navy); doc.rect(M, y, CW, 7, 'F');
-      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-      let x = M; cols.forEach(c => { doc.text(c.t, x + 2, y + 4.8); x += c.w * CW; }); y += 7;
-    };
-    head();
-    if (!rows.length) { doc.setTextColor(...sub); doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.text('Nobody on holiday in this period.', M + 2, y + 5); y += 10; return; }
-    rows.forEach((r, ri) => {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-      const cells = cols.map((c, i) => doc.splitTextToSize(String(r[i] == null ? '' : r[i]), c.w * CW - 4));
-      const h = Math.max(...cells.map(c => c.length)) * 3.8 + 3;
-      if (need(h)) head();
-      if (ri % 2) { doc.setFillColor(248, 250, 252); doc.rect(M, y, CW, h, 'F'); }
-      doc.setDrawColor(...line); doc.line(M, y + h, M + CW, y + h);
-      let x = M;
-      cells.forEach((c, i) => {
-        doc.setTextColor(...ink); doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
-        doc.text(c, x + 2, y + 4.3); x += cols[i].w * CW;
-      });
-      y += h;
+  const header = (a, b) => {
+    if (page) { footer(); doc.addPage('a4', 'landscape'); }
+    page++;
+    doc.setFillColor(...navy); doc.rect(0, 0, W, 16, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('Holiday Report', M, 7.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.text('Bidvest Noonan · Connolly Site' + (group ? ' · Group: ' + group : ''), M, 12.5);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text(dmyISO(a) + '  –  ' + dmyISO(b), W - M, 9.5, { align: 'right' });
+  };
+  // staff rows: the people on holiday, or everyone (of the group), sorted by group then name like the app
+  let staff;
+  if (who === 'all') staff = employees.filter(e => !group || e.group === group).map(e => ({ name: e.name, group: e.group || '', empNo: e.empNo || '' }));
+  else {
+    const empBy = {}; employees.forEach(e => { empBy[e.name] = e; });
+    staff = [...new Set(data.rows.map(r => r.name))].map(n => ({ name: n, group: (empBy[n] && empBy[n].group) || '', empNo: (empBy[n] && empBy[n].empNo) || '' }));
+  }
+  staff.sort((a, b) => (a.group || '').localeCompare(b.group || '') || a.name.localeCompare(b.name));
+  const offOn = d => data.rows.filter(r => r.start <= d && r.end >= d);
+  const hasShifts = shifts && shifts.some(sh => (sh.slots || 0) > 0);
+  // one page per block of up to 31 days (a month fits on one A4)
+  for (let a = from; a <= to; a = isoAdd(a, 31)) {
+    let b = isoAdd(a, 30); if (b > to) b = to;
+    header(a, b);
+    const dates = []; for (let d = a; d <= b; d = isoAdd(d, 1)) dates.push(d);
+    const nameW = 46, gx = M + nameW, gw = W - M - gx, cw = gw / dates.length;
+    let y = 21;
+    // rows that must fit: day header (2 lines), coverage, off count, group titles, staff
+    const groupTitles = (!group && who === 'all') ? new Set(staff.map(s => s.group).filter(Boolean)).size : 0;
+    const fixed = 9 + (hasShifts ? 5 : 0) + 5;
+    const avail = H - 15 - y - fixed;   // keep clear of the legend and footer
+    const units = staff.length + groupTitles * 0.8;
+    const rh = Math.min(6, units ? avail / units : 6);
+    const fs = Math.max(3.6, Math.min(8, rh * 1.45));
+    // day header
+    doc.setDrawColor(...line); doc.setLineWidth(0.15);
+    dates.forEach((d, i) => {
+      const dt = parseISO(d), di = dowIndex(dt), x = gx + i * cw;
+      if (di === 1 || di === 2) { doc.setFillColor(238, 242, 246); doc.rect(x, y, cw, 9, 'F'); }
+      doc.setTextColor(...ink); doc.setFont('helvetica', 'bold'); doc.setFontSize(Math.min(8, cw * 1.25)); doc.text(String(dt.getDate()), x + cw / 2, y + 4, { align: 'center' });
+      doc.setTextColor(...sub); doc.setFont('helvetica', 'normal'); doc.setFontSize(Math.min(6, cw * 0.95)); doc.text(DAYS[di].slice(0, 2), x + cw / 2, y + 7.6, { align: 'center' });
     });
-    y += 8;
-  };
-  table('Holidays in the period', [{ t: 'Name', w: .24 }, { t: 'Emp No', w: .09 }, { t: 'Group', w: .13 }, { t: 'From', w: .12 }, { t: 'To', w: .12 }, { t: 'Days*', w: .07 }, { t: 'Note', w: .23 }],
-    data.rows.map(r => [r.name, r.empNo, r.group, dmyISO(r.start), dmyISO(r.end), r.days, r.note]));
-  doc.setTextColor(...sub); doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5);
-  if (data.rows.length) { doc.text('* Days inside the chosen period (calendar days).', M, y - 5); y += 1; }
-  if (withDays) {
-    const off = data.byDay.filter(d => d.names.length);
-    table('Day by day (days with someone off)', [{ t: 'Date', w: .2 }, { t: 'Off', w: .07 }, { t: 'Names', w: .73 }],
-      off.map(d => [RP_DOW[parseISO(d.date).getDay()] + ' ' + dmyISO(d.date), d.names.length, d.names.join(', ')]));
+    doc.setTextColor(...sub); doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.text('Staff', M, y + 6);
+    y += 9;
+    const rowLabel = (t, yy, h) => { doc.setTextColor(...sub); doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.text(t, M, yy + h / 2 + 1.2); };
+    if (hasShifts) {   // same coverage row as the app: + spare, 0 tight, - short
+      rowLabel('Coverage (safe)', y, 5);
+      dates.forEach((d, i) => {
+        const c = dayCoverage(parseISO(d)); const x = gx + i * cw;
+        const col = c.safe > 0 ? [220, 242, 228] : (c.safe === 0 ? [255, 236, 200] : [250, 210, 205]);
+        doc.setFillColor(...col); doc.rect(x, y, cw, 5, 'F');
+        doc.setTextColor(...ink); doc.setFont('helvetica', 'bold'); doc.setFontSize(Math.min(6.5, cw * 1.1)); doc.text((c.safe > 0 ? '+' : '') + c.safe, x + cw / 2, y + 3.5, { align: 'center' });
+      });
+      y += 5;
+    }
+    rowLabel('On holiday', y, 5);
+    dates.forEach((d, i) => {
+      const n = offOn(d).length, x = gx + i * cw;
+      if (n >= 2) { doc.setFillColor(196, 52, 31); doc.rect(x, y, cw, 5, 'F'); doc.setTextColor(255, 255, 255); }
+      else if (n === 1) { doc.setFillColor(253, 226, 196); doc.rect(x, y, cw, 5, 'F'); doc.setTextColor(...ink); }
+      else doc.setTextColor(180, 188, 200);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(Math.min(6.5, cw * 1.1)); doc.text(n ? String(n) : '·', x + cw / 2, y + 3.5, { align: 'center' });
+    });
+    y += 5;
+    doc.setDrawColor(...navy); doc.setLineWidth(0.3); doc.line(M, y, W - M, y); doc.setLineWidth(0.15); doc.setDrawColor(...line);
+    const gridTop = y;
+    let lastG = null;
+    staff.forEach((st, si) => {
+      if (!group && who === 'all' && st.group && st.group !== lastG) {
+        lastG = st.group;
+        doc.setFillColor(226, 232, 240); doc.rect(M, y, W - 2 * M, rh * 0.8, 'F');
+        doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(Math.min(6.5, fs)); doc.text(st.group, M + 1, y + rh * 0.8 - 0.5);
+        y += rh * 0.8;
+      }
+      if (si % 2) { doc.setFillColor(250, 251, 253); doc.rect(M, y, W - 2 * M, rh, 'F'); }
+      dates.forEach((d, i) => {
+        const di = dowIndex(parseISO(d)), x = gx + i * cw;
+        if (di === 1 || di === 2) { doc.setFillColor(243, 246, 250); doc.rect(x, y, cw, rh, 'F'); }
+        const mine = data.rows.find(r => r.name === st.name && r.start <= d && r.end >= d);
+        if (mine) {
+          const clash = offOn(d).length >= 2;
+          const ins = rh > 3 ? 0.25 : 0.05; doc.setFillColor(...(clash ? [196, 52, 31] : [245, 158, 11])); doc.rect(x + ins, y + ins, cw - 2 * ins, rh - 2 * ins, 'F');
+          if (rh >= 3.2) { doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(Math.min(6, fs)); doc.text('H', x + cw / 2, y + rh / 2 + fs * 0.13, { align: 'center' }); }
+        }
+      });
+      doc.setTextColor(...ink); doc.setFont('helvetica', 'normal'); doc.setFontSize(fs);
+      const label = st.name + (st.empNo ? ' (' + st.empNo + ')' : '');
+      doc.text(doc.splitTextToSize(label, nameW - 2)[0], M + 1, y + rh / 2 + fs * 0.13);
+      doc.line(M, y + rh, W - M, y + rh);
+      y += rh;
+    });
+    if (!staff.length) { doc.setTextColor(...sub); doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.text('Nobody on holiday in these dates.', gx, y + 8); }
+    // vertical lines: every day, thicker at the start of each week (Friday)
+    dates.forEach((d, i) => {
+      const x = gx + i * cw, fri = dowIndex(parseISO(d)) === 0;
+      doc.setDrawColor(...(fri ? navy : line)); doc.setLineWidth(fri ? 0.35 : 0.15);
+      doc.line(x, 21, x, Math.max(y, gridTop));
+    });
+    doc.setLineWidth(0.15);
+    // legend
+    const ly = H - 10;
+    const key = (x, col, t) => { doc.setFillColor(...col); doc.rect(x, ly - 2.6, 4, 3, 'F'); doc.setTextColor(...sub); doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.text(t, x + 5.5, ly); return x + 6 + doc.getTextWidth(t) + 6; };
+    let lx = M;
+    lx = key(lx, [245, 158, 11], 'On holiday');
+    lx = key(lx, [196, 52, 31], 'Overlap: 2 or more people off that day');
+    lx = key(lx, [238, 242, 246], 'Weekend');
+    doc.setTextColor(...sub); doc.text('Thick line = start of the week (Friday)', lx, ly);
+  }
+  // optional list page
+  if (withList) {
+    header(from, to);
+    let y = 24;
+    const cols = [{ t: 'Name', w: .22 }, { t: 'Emp No', w: .08 }, { t: 'Group', w: .12 }, { t: 'From', w: .1 }, { t: 'To', w: .1 }, { t: 'Days*', w: .06 }, { t: 'Note', w: .32 }];
+    const CW = W - 2 * M;
+    const head = () => { doc.setFillColor(...navy); doc.rect(M, y, CW, 7, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8); let x = M; cols.forEach(c => { doc.text(c.t, x + 2, y + 4.8); x += c.w * CW; }); y += 7; };
+    head();
+    data.rows.forEach((r, ri) => {
+      const vals = [r.name, r.empNo, r.group, dmyISO(r.start), dmyISO(r.end), r.days, r.note];
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      const cells = cols.map((c, i) => doc.splitTextToSize(String(vals[i] == null ? '' : vals[i]), c.w * CW - 4));
+      const h = Math.max(...cells.map(c => c.length)) * 3.8 + 3;
+      if (y + h > H - 14) { header(from, to); y = 24; head(); }
+      if (ri % 2) { doc.setFillColor(248, 250, 252); doc.rect(M, y, CW, h, 'F'); }
+      let x = M;
+      cells.forEach((c, i) => { doc.setTextColor(...ink); doc.setFont('helvetica', i === 0 ? 'bold' : 'normal'); doc.text(c, x + 2, y + 4.3); x += cols[i].w * CW; });
+      doc.setDrawColor(...line); doc.line(M, y + h, M + CW, y + h); y += h;
+    });
+    if (!data.rows.length) { doc.setTextColor(...sub); doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.text('Nobody on holiday in this period.', M + 2, y + 5); }
+    else { doc.setTextColor(...sub); doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.text('* Days inside the chosen dates (calendar days).', M, y + 5); }
   }
   footer();
   return doc;
@@ -1389,9 +1457,9 @@ function buildHolidayPdf(JsPDF, from, to, group, withDays) {
 document.getElementById('rpGo').addEventListener('click', () => {
   const from = document.getElementById('rpFrom').value, to = document.getElementById('rpTo').value;
   if (!from || !to || to < from) { rpUpdateInfo(); return; }
-  const group = document.getElementById('rpGroup').value, withDays = document.getElementById('rpDays').checked;
+  const group = document.getElementById('rpGroup').value, withList = document.getElementById('rpDays').checked, who = document.getElementById('rpWho').value;
   withJsPDF(JsPDF => {
-    const doc = buildHolidayPdf(JsPDF, from, to, group, withDays);
+    const doc = buildHolidayPdf(JsPDF, from, to, group, withList, who);
     doc.save('Holiday_Report_' + from + '_to_' + to + (group ? '_' + group.replace(/[^a-z0-9]+/gi, '_') : '') + '.pdf');
     closeModal('reportModal');
   });
