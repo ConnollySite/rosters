@@ -161,10 +161,11 @@ textarea.import-paste { width: 100%; height: 140px; font-family: monospace; font
 </div>
 
 <header>
-  <h1>🏖 Holiday Manager — Connolly Site <small style="font-size:11px;opacity:.6;font-weight:400">v13-10 · cloud</small></h1>
+  <h1>🏖 Holiday Manager — Connolly Site <small style="font-size:11px;opacity:.6;font-weight:400">v27-10 · cloud</small></h1>
   <div class="header-btns">
     <span id="userLabel"></span>
     <span class="save-indicator saved" id="saveIndicator">💾 Saved</span>
+    <button class="btn btn-green" id="reportBtn">📄 PDF Report</button>
     <button class="btn btn-dark" id="lockBtn">🔒 Lock</button>
     <button class="btn btn-purple" id="importRosterBtn">⇩ Import Roster Data</button>
     <button class="btn btn-dark" id="exportBackupBtn">Export Backup</button>
@@ -275,6 +276,35 @@ textarea.import-paste { width: 100%; height: 140px; font-family: monospace; font
       <button class="btn btn-red" id="holDeleteBtn" style="display:none;margin-right:auto;">Delete</button>
       <button class="btn btn-dark" data-close="holModal">Cancel</button>
       <button class="btn btn-green" id="holSaveBtn">Approve &amp; Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PDF REPORT MODAL ═══ -->
+<div class="modal-overlay" id="reportModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Holiday report (PDF)</h3>
+      <button class="modal-close" data-close="reportModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
+        <button type="button" class="btn btn-dark btn-sm" data-rp="month0">This month</button>
+        <button type="button" class="btn btn-dark btn-sm" data-rp="month1">Next month</button>
+        <button type="button" class="btn btn-dark btn-sm" data-rp="period0">This 2-week period</button>
+        <button type="button" class="btn btn-dark btn-sm" data-rp="period1">Next 2-week period</button>
+      </div>
+      <div class="form-row-2">
+        <div class="form-row"><label>From</label><input type="date" id="rpFrom"></div>
+        <div class="form-row"><label>To</label><input type="date" id="rpTo"></div>
+      </div>
+      <div class="form-row"><label>Group</label><select id="rpGroup"></select></div>
+      <div class="form-row"><label style="display:flex;gap:8px;align-items:center;font-weight:normal;"><input type="checkbox" id="rpDays" checked style="width:auto;"> Include a day-by-day list (who is off each day)</label></div>
+      <div id="rpInfo" class="hint-text"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-dark" data-close="reportModal">Cancel</button>
+      <button class="btn btn-green" id="rpGo">Create PDF</button>
     </div>
   </div>
 </div>
@@ -1210,6 +1240,161 @@ document.getElementById('importBackupFileInput').addEventListener('change', (e) 
     } catch(err) { alert('That file could not be read as a Holiday Manager backup.'); }
   };
   reader.readAsText(file);
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// PDF REPORT (holidays inside the dates you choose)
+// ══════════════════════════════════════════════════════════════════════════
+const RP_ANCHOR = '2026-10-16';   // first day of a 2-week period (Friday), same as the Period Calendar
+function isoAdd(iso, n) { const d = parseISO(iso); d.setDate(d.getDate() + n); return fmtISO(d); }
+function daysBetweenISO(a, b) { return Math.round((parseISO(b) - parseISO(a)) / 86400000); }
+function dmyISO(iso) { return iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4); }
+const RP_DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function rpPreset(kind) {
+  const t = new Date(); const today = fmtISO(t);
+  if (kind === 'month0' || kind === 'month1') {
+    const add = kind === 'month1' ? 1 : 0;
+    const a = new Date(t.getFullYear(), t.getMonth() + add, 1), b = new Date(t.getFullYear(), t.getMonth() + add + 1, 0);
+    return [fmtISO(a), fmtISO(b)];
+  }
+  const k = Math.floor(daysBetweenISO(RP_ANCHOR, today) / 14) + (kind === 'period1' ? 1 : 0);
+  const a = isoAdd(RP_ANCHOR, k * 14); return [a, isoAdd(a, 13)];
+}
+function rpCollect(from, to, group) {
+  const empBy = {}; employees.forEach(e => { empBy[e.name] = e; });
+  const rows = holidays.filter(h => h.start <= to && h.end >= from).map(h => {
+    const e = empBy[h.name] || {};
+    const a = h.start > from ? h.start : from, b = h.end < to ? h.end : to;
+    return { name: h.name, empNo: e.empNo || '', group: e.group || '', start: h.start, end: h.end, note: h.note || '', days: daysBetweenISO(a, b) + 1 };
+  }).filter(r => !group || r.group === group);
+  rows.sort((x, y) => x.start < y.start ? -1 : x.start > y.start ? 1 : x.name.localeCompare(y.name));
+  const byDay = [];
+  for (let d = from; d <= to; d = isoAdd(d, 1)) {
+    const names = rows.filter(r => r.start <= d && r.end >= d).map(r => r.name).sort((a, b) => a.localeCompare(b));
+    byDay.push({ date: d, names });
+  }
+  return { rows, byDay };
+}
+function rpUpdateInfo() {
+  const from = document.getElementById('rpFrom').value, to = document.getElementById('rpTo').value;
+  const info = document.getElementById('rpInfo');
+  if (!from || !to) { info.textContent = 'Choose both dates.'; return; }
+  if (to < from) { info.textContent = '"To" is before "From".'; return; }
+  const r = rpCollect(from, to, document.getElementById('rpGroup').value);
+  const people = new Set(r.rows.map(x => x.name)).size;
+  info.textContent = (daysBetweenISO(from, to) + 1) + ' days · ' + r.rows.length + ' holiday entr' + (r.rows.length === 1 ? 'y' : 'ies') + ' · ' + people + ' staff';
+}
+function openReport() {
+  const p = rpPreset('month0');
+  if (Number.isInteger(viewMonth) && viewYear) {
+    p[0] = fmtISO(new Date(viewYear, viewMonth, 1)); p[1] = fmtISO(new Date(viewYear, viewMonth + 1, 0));
+  }
+  document.getElementById('rpFrom').value = p[0]; document.getElementById('rpTo').value = p[1];
+  const groupsSet = [...new Set(employees.map(e => e.group).filter(Boolean))].sort();
+  const cur = document.getElementById('groupFilter') ? document.getElementById('groupFilter').value : '';
+  document.getElementById('rpGroup').innerHTML = '<option value="">All groups</option>' + groupsSet.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  document.getElementById('rpGroup').value = groupsSet.includes(cur) ? cur : '';
+  rpUpdateInfo();
+  document.getElementById('reportModal').classList.add('open');
+}
+document.getElementById('reportBtn').addEventListener('click', openReport);
+['rpFrom','rpTo','rpGroup'].forEach(id => document.getElementById(id).addEventListener('change', rpUpdateInfo));
+document.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
+  const p = rpPreset(b.dataset.rp); document.getElementById('rpFrom').value = p[0]; document.getElementById('rpTo').value = p[1]; rpUpdateInfo();
+}));
+function withJsPDF(cb) {
+  if (window.jspdf && window.jspdf.jsPDF) { cb(window.jspdf.jsPDF); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  s.onload = () => (window.jspdf && window.jspdf.jsPDF) ? cb(window.jspdf.jsPDF) : alert('Could not load the PDF maker.');
+  s.onerror = () => alert('Could not load the PDF maker (internet needed).');
+  document.head.appendChild(s);
+}
+function buildHolidayPdf(JsPDF, from, to, group, withDays) {
+  const data = rpCollect(from, to, group);
+  const doc = new JsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210, M = 14, CW = W - 2 * M;
+  let y = 0, page = 1;
+  const navy = [14, 35, 64], sub = [91, 107, 132], ink = [22, 35, 58], line = [221, 228, 236];
+  const header = () => {
+    doc.setFillColor(...navy); doc.rect(0, 0, W, 24, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text('Holiday Report', M, 11);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('Bidvest Noonan · Connolly Site', M, 17);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text(dmyISO(from) + '  –  ' + dmyISO(to), W - M, 11, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(group ? 'Group: ' + group : 'All groups', W - M, 17, { align: 'right' });
+    y = 32;
+  };
+  const footer = () => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150, 160, 175);
+    doc.text('Generated ' + new Date().toLocaleString('en-IE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }), M, 290);
+    doc.text('Page ' + page, W - M, 290, { align: 'right' });
+  };
+  const newPage = () => { footer(); doc.addPage(); page++; header(); };
+  const need = h => { if (y + h > 280) { newPage(); return true; } return false; };
+  header();
+  // summary
+  const people = new Set(data.rows.map(r => r.name)).size;
+  const personDays = data.byDay.reduce((a, d) => a + d.names.length, 0);
+  const busiest = data.byDay.reduce((best, d) => (!best || d.names.length > best.names.length) ? d : best, null);
+  const boxes = [['Staff on holiday', String(people)], ['Holiday entries', String(data.rows.length)], ['Days off (total)', String(personDays)],
+    ['Busiest day', busiest && busiest.names.length ? dmyISO(busiest.date).slice(0, 5) + ' (' + busiest.names.length + ')' : '—']];
+  const bw = (CW - 9) / 4;
+  boxes.forEach((b, i) => {
+    const x = M + i * (bw + 3);
+    doc.setFillColor(238, 242, 246); doc.roundedRect(x, y, bw, 16, 2, 2, 'F');
+    doc.setTextColor(...sub); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text(b[0].toUpperCase(), x + 3, y + 5.5);
+    doc.setTextColor(...ink); doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text(b[1], x + 3, y + 13);
+  });
+  y += 24;
+  // table helper
+  const table = (title, cols, rows) => {
+    need(20);
+    doc.setTextColor(...navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text(title, M, y); y += 5;
+    const head = () => {
+      doc.setFillColor(...navy); doc.rect(M, y, CW, 7, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+      let x = M; cols.forEach(c => { doc.text(c.t, x + 2, y + 4.8); x += c.w * CW; }); y += 7;
+    };
+    head();
+    if (!rows.length) { doc.setTextColor(...sub); doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.text('Nobody on holiday in this period.', M + 2, y + 5); y += 10; return; }
+    rows.forEach((r, ri) => {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+      const cells = cols.map((c, i) => doc.splitTextToSize(String(r[i] == null ? '' : r[i]), c.w * CW - 4));
+      const h = Math.max(...cells.map(c => c.length)) * 3.8 + 3;
+      if (need(h)) head();
+      if (ri % 2) { doc.setFillColor(248, 250, 252); doc.rect(M, y, CW, h, 'F'); }
+      doc.setDrawColor(...line); doc.line(M, y + h, M + CW, y + h);
+      let x = M;
+      cells.forEach((c, i) => {
+        doc.setTextColor(...ink); doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
+        doc.text(c, x + 2, y + 4.3); x += cols[i].w * CW;
+      });
+      y += h;
+    });
+    y += 8;
+  };
+  table('Holidays in the period', [{ t: 'Name', w: .24 }, { t: 'Emp No', w: .09 }, { t: 'Group', w: .13 }, { t: 'From', w: .12 }, { t: 'To', w: .12 }, { t: 'Days*', w: .07 }, { t: 'Note', w: .23 }],
+    data.rows.map(r => [r.name, r.empNo, r.group, dmyISO(r.start), dmyISO(r.end), r.days, r.note]));
+  doc.setTextColor(...sub); doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5);
+  if (data.rows.length) { doc.text('* Days inside the chosen period (calendar days).', M, y - 5); y += 1; }
+  if (withDays) {
+    const off = data.byDay.filter(d => d.names.length);
+    table('Day by day (days with someone off)', [{ t: 'Date', w: .2 }, { t: 'Off', w: .07 }, { t: 'Names', w: .73 }],
+      off.map(d => [RP_DOW[parseISO(d.date).getDay()] + ' ' + dmyISO(d.date), d.names.length, d.names.join(', ')]));
+  }
+  footer();
+  return doc;
+}
+document.getElementById('rpGo').addEventListener('click', () => {
+  const from = document.getElementById('rpFrom').value, to = document.getElementById('rpTo').value;
+  if (!from || !to || to < from) { rpUpdateInfo(); return; }
+  const group = document.getElementById('rpGroup').value, withDays = document.getElementById('rpDays').checked;
+  withJsPDF(JsPDF => {
+    const doc = buildHolidayPdf(JsPDF, from, to, group, withDays);
+    doc.save('Holiday_Report_' + from + '_to_' + to + (group ? '_' + group.replace(/[^a-z0-9]+/gi, '_') : '') + '.pdf');
+    closeModal('reportModal');
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════
