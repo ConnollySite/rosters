@@ -106,6 +106,9 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
   border:1.5px solid var(--line);border-radius:7px;background:#fff;color:var(--sub);
   padding:4px 5px;font-family:inherit;
 }
+.post-mv{flex:none;width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--navy);font-size:10px;line-height:1;cursor:pointer;padding:0;}
+.post-mv:disabled{opacity:.3;cursor:default;}
+.post-mv:active{background:var(--accent-bg);}
 .post-del{flex:none;width:26px;height:26px;border-radius:50%;border:none;background:transparent;color:var(--red);font-size:15px;cursor:pointer;}
 .post-del:active{background:var(--red-bg);}
 
@@ -604,6 +607,8 @@ function renderPosts(){
   const th = themeFor(sec.theme);
   const styleVars = '--accent:'+th.accent+';--accent-bg:'+th.bg+';--accent-deep:'+th.deep+';';
   postsContainer.innerHTML = sec.posts.map(function(p){ return renderPostCard(p, styleVars); }).join('');
+  const cards = postsContainer.querySelectorAll('.post');
+  if(cards.length){ cards[0].querySelector('[data-role="moveUp"]').disabled = true; cards[cards.length-1].querySelector('[data-role="moveDown"]').disabled = true; }
   renderSummary();
 }
 
@@ -642,6 +647,8 @@ function renderPostCard(p, styleVars){
         '<option value="Radio Direct"'+(p.badge==='Radio Direct'?' selected':'')+'>Radio Direct</option>'+
         '<option value="On Duty"'+(p.badge==='On Duty'?' selected':'')+'>On Duty</option>'+
       '</select>'+
+      '<button class="post-mv" data-post="'+p.id+'" data-role="moveUp" title="Move up">▲</button>'+
+      '<button class="post-mv" data-post="'+p.id+'" data-role="moveDown" title="Move down">▼</button>'+
       '<button class="post-del" data-post="'+p.id+'" data-role="delPost" title="Delete post">✕</button>'+
     '</div>'+
     '<div class="post-body">'+
@@ -717,6 +724,14 @@ postsContainer.addEventListener('click', function(e){
   const p = postId ? findPost(postId) : null;
   const sec = getCurrentSection();
 
+  if(role==='moveUp' || role==='moveDown'){
+    const i = sec.posts.findIndex(function(x){ return x.id===postId; }), j = i + (role==='moveUp' ? -1 : 1);
+    if(i < 0 || j < 0 || j >= sec.posts.length) return;
+    const tmp = sec.posts[i]; sec.posts[i] = sec.posts[j]; sec.posts[j] = tmp;
+    persist(); renderAll();
+    const el = postsContainer.querySelector('.post[data-post="'+postId+'"]'); if(el && el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+    return;
+  }
   if(role==='delPost'){
     if(!confirm('Delete "'+p.name+'"?')) return;
     sec.posts = sec.posts.filter(function(x){ return x.id!==postId; });
@@ -1293,7 +1308,7 @@ cdInit().then(function(){
           .map(function(s){return {name:s.name.trim(), code:(s.code||'').trim(), note:(s.note||'').trim()};});
         // supervisor post: also send every phone typed in the slots (name or code) and the radio field, for the teams' Emergency Numbers
         var phones=/supervisor/i.test(p.name||'') ? (p.staff||[]).reduce(function(acc,s){ return acc.concat([s.name||'', s.code||'']); },[]).concat([p.radio||'']).map(function(x){return String(x).trim();}).filter(function(x){return /^[+0-9][0-9 ()-]{6,}$/.test(x);}) : [];
-        if(staff.length || phones.length) posts.push({post:p.name||'', radio:p.radio||'', names:staff.map(function(s){return s.name;}), staff:staff, phones:phones});
+        if(staff.length || phones.length) posts.push({post:p.name||'', time:p.time||'', radio:p.radio||'', names:staff.map(function(s){return s.name;}), staff:staff, phones:phones});
       });
     });
     return posts;
