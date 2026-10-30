@@ -108,6 +108,10 @@ header::after{content:"";position:absolute;right:-50px;top:-60px;width:200px;hei
 }
 .post-mv{flex:none;width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--navy);font-size:10px;line-height:1;cursor:pointer;padding:0;}
 .post-mv:disabled{opacity:.3;cursor:default;}
+.post-pr{flex:none;display:flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--navy);border:1px solid var(--line);border-radius:6px;padding:0 6px;height:24px;background:#fff;cursor:pointer;white-space:nowrap;user-select:none;}
+.post-pr input{margin:0;width:14px;height:14px;cursor:pointer;}
+.post.noprint .post-pr{color:#9aa5b1;background:#f3f4f6;}
+.post.noprint .post-body,.post.noprint .post-name{opacity:.55;}
 .post-mv:active{background:var(--accent-bg);}
 .post-del{flex:none;width:26px;height:26px;border-radius:50%;border:none;background:transparent;color:var(--red);font-size:15px;cursor:pointer;}
 .post-del:active{background:var(--red-bg);}
@@ -639,7 +643,7 @@ function renderPostCard(p, styleVars){
   else if(realNames.length>0) statusClass='partial';
 
   return (
-  '<div class="post" data-post="'+p.id+'" style="'+styleVars+'">'+
+  '<div class="post'+(p.print===false?' noprint':'')+'" data-post="'+p.id+'" style="'+styleVars+'">'+
     '<div class="post-head">'+
       '<span class="status-dot '+statusClass+'"></span>'+
       '<input class="post-name" type="text" value="'+escapeHtml(p.name)+'" data-post="'+p.id+'" data-role="postName">'+
@@ -647,6 +651,7 @@ function renderPostCard(p, styleVars){
         '<option value="Radio Direct"'+(p.badge==='Radio Direct'?' selected':'')+'>Radio Direct</option>'+
         '<option value="On Duty"'+(p.badge==='On Duty'?' selected':'')+'>On Duty</option>'+
       '</select>'+
+      '<label class="post-pr" title="Add to print version (PDF)"><input type="checkbox" data-post="'+p.id+'" data-role="print"'+(p.print===false?'':' checked')+'>Print</label>'+
       '<button class="post-mv" data-post="'+p.id+'" data-role="moveUp" title="Move up">▲</button>'+
       '<button class="post-mv" data-post="'+p.id+'" data-role="moveDown" title="Move down">▼</button>'+
       '<button class="post-del" data-post="'+p.id+'" data-role="delPost" title="Delete post">✕</button>'+
@@ -713,6 +718,17 @@ postsContainer.addEventListener('change', function(e){
     const p = findPost(t.getAttribute('data-post'));
     if(p){ p.badge = t.value; persist(); }
   }
+});
+
+// "Print" tick on each shift: unticked shifts stay out of the PDF (kept for the next days too)
+postsContainer.addEventListener('change', function(e){
+  const t = e.target;
+  if(t.getAttribute('data-role')!=='print') return;
+  const p = findPost(t.getAttribute('data-post'));
+  if(!p) return;
+  if(t.checked) delete p.print; else p.print = false;
+  const card = t.closest('.post'); if(card) card.classList.toggle('noprint', !t.checked);
+  persist();
 });
 
 postsContainer.addEventListener('click', function(e){
@@ -907,7 +923,11 @@ function buildRosterPDF(){
   const dObj = new Date(state.date+'T00:00:00');
   const dateHeader = dObj.toLocaleDateString('en-IE',{day:'2-digit',month:'2-digit',year:'2-digit'}) + '  ' + dObj.toLocaleDateString('en-IE',{weekday:'long'});
 
-  const sections = state.data.sections.filter(function(s){ return s.posts.length>0; });
+  // only the shifts ticked "Print"
+  const sections = state.data.sections.map(function(s){
+    return Object.assign({}, s, { posts: s.posts.filter(function(p){ return p.print!==false; }) });
+  }).filter(function(s){ return s.posts.length>0; });
+  if(!sections.length){ alert('No shift is ticked "Print". Tick at least one to make the PDF.'); return; }
 
   // Base (scale = 1) sizes in pt for fonts, mm for line/box metrics.
   // bodyFS is the reference used for the "minimum 9pt" floor.
