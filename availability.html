@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Availability – Bidvest Noonan Connolly</title>
+<meta name="theme-color" content="#0E2340">
+<style>
+  :root { --navy: #0E2340; --navy2: #16345E; --blue: #0099D8; --bg: #EEF2F6; --card: #fff; --ink: #16233A; --sub: #5B6B84; --line: #DDE4EC; --ok: #1F8A4C; --red: #C4341F; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding-bottom: 40px; }
+  header { background: linear-gradient(135deg, var(--navy), var(--navy2)); color: #fff; padding: 22px 16px 26px; }
+  header .in, main { max-width: 560px; margin: 0 auto; }
+  header small { display: block; color: #8FD6F5; font-weight: 800; letter-spacing: .14em; font-size: 11px; text-transform: uppercase; }
+  header h1 { margin: 6px 0 4px; font-size: 22px; }
+  header p { margin: 0; color: #B9CBE0; font-size: 14px; line-height: 1.4; }
+  main { padding: 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-top: 14px; box-shadow: 0 8px 24px rgba(14,35,64,.06); }
+  .card h2 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: #0077AD; }
+  label { display: block; font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+  .field { margin-bottom: 14px; } .field:last-child { margin-bottom: 0; }
+  input, select { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: #F8FAFC; border: 1.5px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  input:focus, select:focus { outline: none; border-color: var(--blue); background: #fff; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .day { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .day:first-of-type { border-top: 0; }
+  .day b { font-size: 15px; }
+  .hint { font-size: 12.5px; color: var(--sub); margin-top: 6px; line-height: 1.4; }
+  button { width: 100%; margin-top: 16px; padding: 15px; border: 0; border-radius: 12px; background: var(--navy); color: #fff; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; }
+  button:disabled { opacity: .6; }
+  .err { color: var(--red); font-weight: 700; font-size: 14px; margin-top: 10px; min-height: 1em; }
+  .done { text-align: center; padding: 30px 16px; }
+  .done .tick { font-size: 46px; color: var(--ok); }
+  .done h2 { font-size: 20px; text-transform: none; letter-spacing: 0; color: var(--ink); margin: 8px 0; }
+  .sum { text-align: left; margin-top: 14px; font-size: 14px; line-height: 1.6; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header><div class="in">
+  <small>Bidvest Noonan · Connolly</small>
+  <h1>Student availability</h1>
+  <p id="intro">Tell us when you can work. You can send this form <b>only once</b>, so please check everything before you submit.</p>
+</div></header>
+<main>
+  <form id="f" autocomplete="off">
+    <div class="card"><h2>You</h2>
+      <div class="field"><label for="name">Full name</label><input id="name" maxlength="80" autocapitalize="words"></div>
+      <div class="field"><label for="emp">Employee number</label><input id="emp" maxlength="20" inputmode="text" autocapitalize="characters"></div>
+    </div>
+    <div class="card"><h2>Dates</h2>
+      <div class="two">
+        <div class="field"><label for="from">From</label><input id="from" type="date"></div>
+        <div class="field"><label for="to">To</label><input id="to" type="date"></div>
+      </div>
+      <div class="hint" id="range"></div>
+    </div>
+    <div class="card"><h2>Each day of the week</h2><div id="days"></div>
+      <div class="hint">"Available from 14:00" means you can start at 14:00 or later.</div>
+    </div>
+    <button type="submit" id="send">Submit</button>
+    <div class="err" id="err"></div>
+  </form>
+  <div class="card done hidden" id="ok"><div class="tick">✓</div><h2>Thank you, your availability was sent</h2><div class="hint" id="okWhen"></div><div class="sum" id="okSum"></div>
+    <div class="hint" style="margin-top:14px">If something must change, speak to your supervisor.</div></div>
+</main>
+<script>
+(function () {
+  var URL_ = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+  var FROM = '2026-11-01', TO = '2026-12-31';
+  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], FULL = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+  var OPTS = ['Available anytime', 'Not available', 'Available from 10:00', 'Available from 11:00', 'Available from 12:00', 'Available from 14:00', 'Available from 16:00'];
+  var KEY = 'avail_sent_2026_nov_dec';
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nice(iso) { var p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function setRange() {
+    $('from').min = $('to').min = FROM; $('from').max = $('to').max = TO;
+    if (!$('from').value) $('from').value = FROM;
+    if (!$('to').value) $('to').value = TO;
+    $('range').textContent = 'Between ' + nice(FROM) + ' and ' + nice(TO) + '.';
+  }
+  $('days').innerHTML = DAYS.map(function (d) {
+    return '<div class="day"><b>' + FULL[d] + '</b><select id="d_' + d + '"><option value="">Choose…</option>' + OPTS.map(function (o) { return '<option>' + esc(o) + '</option>'; }).join('') + '</select></div>';
+  }).join('');
+  setRange();
+  function showDone(info) {
+    $('f').classList.add('hidden'); $('ok').classList.remove('hidden');
+    $('okWhen').textContent = info && info.submitted ? 'Sent on ' + info.submitted : '';
+    $('okSum').innerHTML = info && info.days ? '<b>' + esc(info.name) + '</b> (' + esc(info.empNo) + ')<br>' + nice(info.from) + ' to ' + nice(info.to) + '<br>' + DAYS.map(function (d) { return FULL[d] + ': ' + esc(info.days[d]); }).join('<br>') : '';
+  }
+  // this phone already sent it: show the summary instead of the form
+  try { var prev = JSON.parse(localStorage.getItem(KEY) || 'null'); if (prev) showDone(prev); } catch (e) {}
+  // the period comes from the server (so it can be changed there without touching this page)
+  fetch(URL_ + '?format=availinfo&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) { if (j && j.from && j.to && (j.from !== FROM || j.to !== TO)) { FROM = j.from; TO = j.to; $('from').value = ''; $('to').value = ''; setRange(); } }).catch(function () {});
+
+  $('f').onsubmit = function (ev) {
+    ev.preventDefault();
+    var err = $('err'); err.textContent = '';
+    var d = { kind: 'availability', name: $('name').value.trim(), empNo: $('emp').value.trim(), from: $('from').value, to: $('to').value, days: {} };
+    if (d.name.length < 3) { err.textContent = 'Write your full name.'; return; }
+    if (!d.empNo) { err.textContent = 'Write your employee number.'; return; }
+    if (!d.from || !d.to || d.from < FROM || d.to > TO) { err.textContent = 'Choose dates between ' + nice(FROM) + ' and ' + nice(TO) + '.'; return; }
+    if (d.to < d.from) { err.textContent = 'The "To" date is before the "From" date.'; return; }
+    for (var i = 0; i < DAYS.length; i++) { var v = $('d_' + DAYS[i]).value; if (!v) { err.textContent = 'Choose an option for ' + FULL[DAYS[i]] + '.'; $('d_' + DAYS[i]).focus(); return; } d.days[DAYS[i]] = v; }
+    if (!confirm('You can only send this once. Send it now?')) return;
+    $('send').disabled = true; $('send').textContent = 'Sending…';
+    fetch(URL_, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(d) })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (r && r.ok) { d.submitted = r.submitted; try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} showDone(d); window.scrollTo(0, 0); return; }
+        if (r && r.error === 'already') { err.textContent = 'This employee number already sent the availability (' + (r.submitted || '') + '). If something must change, speak to your supervisor.'; }
+        else err.textContent = (r && r.error) || 'Could not send. Try again.';
+        $('send').disabled = false; $('send').textContent = 'Submit';
+      })
+      .catch(function () { err.textContent = 'No connection. Check the internet and try again.'; $('send').disabled = false; $('send').textContent = 'Submit'; });
+  };
+})();
+</script>
+</body>
+</html>

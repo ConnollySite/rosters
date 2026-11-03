@@ -10,6 +10,18 @@ body { font-family: Arial, sans-serif; font-size: 13px; background: #f8f9fa; col
 
 header { background: #1a1a2e; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 header h1 { color: #fff; font-size: 16px; margin: 0; letter-spacing: 0.3px; }
+/* student availability panel (opens under the header) */
+#availPanel { display: none; background: #fff; border-bottom: 3px solid #6f42c1; padding: 10px 16px 14px; max-height: 60vh; overflow: auto; }
+#availPanel.open { display: block; }
+.av-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.av-top b { font-size: 14px; } #avCount { color: #666; font-size: 12px; margin-right: auto; }
+#avSearch { padding: 5px 8px; border: 1px solid #bbb; border-radius: 4px; font-size: 12px; min-width: 180px; }
+#avMsg { font-size: 12px; color: #b02a37; margin-bottom: 6px; }
+#avTable table { border-collapse: collapse; width: 100%; font-size: 12px; }
+#avTable th, #avTable td { border: 1px solid #ddd; padding: 4px 6px; text-align: left; white-space: nowrap; }
+#avTable th { background: #f1f3f5; position: sticky; top: 0; z-index: 1; }
+#avTable td.any { background: #d1f2dd; } #avTable td.no { background: #f8d7da; color: #842029; } #avTable td.from { background: #fff3cd; }
+#avTable .avdel { background: none; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 11px; padding: 2px 6px; }
 .header-btns { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
 .btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: opacity .15s; }
 .btn:hover { opacity: 0.85; }
@@ -365,8 +377,20 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
     <button class="btn btn-orange" id="versionsBtn">🕘 Versions</button>
     <button class="btn btn-orange" id="historyBtn">📜 History</button>
     <button class="btn btn-dark"   id="lockBtn">🔒 Lock</button>
+    <button class="btn btn-purple" id="availBtn">🎓 Student availability</button>
   </div>
 </header>
+<div id="availPanel">
+  <div class="av-top">
+    <b>🎓 Student availability</b><span id="avCount"></span>
+    <input id="avSearch" type="search" placeholder="Search name or number…">
+    <button class="btn btn-blue" id="avRefresh">↻ Refresh</button>
+    <button class="btn btn-green" id="avCopyLink">🔗 Copy form link</button>
+    <button class="btn btn-dark" id="avClose">✕ Close</button>
+  </div>
+  <div id="avMsg"></div>
+  <div id="avTable"></div>
+</div>
 <div id="pinOverlay">
   <div id="pinBox">
     <h2>Weekly Roster</h2>
@@ -2658,6 +2682,66 @@ setInterval(pollCloud, 6000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pollCloud(); });
 window.addEventListener('focus', pollCloud);
 
+/* ===== Student availability: answers of the public form (rosters/availability.html), kept in the Onboard backend.
+   Read with the Onboard supervisor PIN (the same one the Duty Roster uses on this computer). ===== */
+(function () {
+  var AV_URL = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+  var FORM_URL = 'https://connollysite.github.io/rosters/availability.html';
+  var panel = document.getElementById('availPanel'), data = null;
+  function opPin() { try { return localStorage.getItem('roster_op_pin') || ''; } catch (e) { return ''; } }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function nice(iso) { var p = String(iso).split('-'); return p.length === 3 ? p[2] + '/' + p[1] : iso; }
+  function short(v) { return v === 'Available anytime' ? 'Anytime' : v === 'Not available' ? 'Not available' : v.replace('Available from ', 'From '); }
+  function cls(v) { return v === 'Available anytime' ? 'any' : v === 'Not available' ? 'no' : 'from'; }
+  function call(body) {
+    return fetch(AV_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ pin: opPin() }, body)) }).then(function (r) { return r.json(); });
+  }
+  function msg(t) { document.getElementById('avMsg').textContent = t || ''; }
+  function draw() {
+    var box = document.getElementById('avTable');
+    if (!data) { box.innerHTML = ''; return; }
+    var q = document.getElementById('avSearch').value.trim().toLowerCase();
+    var rows = data.rows.filter(function (r) { return !q || r.name.toLowerCase().indexOf(q) >= 0 || String(r.empNo).toLowerCase().indexOf(q) >= 0; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name); });
+    document.getElementById('avCount').textContent = data.rows.length + ' answer(s) · period ' + nice(data.from) + ' – ' + nice(data.to);
+    if (!rows.length) { box.innerHTML = '<div style="color:#666;font-size:12px;padding:6px 0">' + (data.rows.length ? 'Nobody matches the search.' : 'No answers yet. Send the form link to the students.') + '</div>'; return; }
+    box.innerHTML = '<table><thead><tr><th>Name</th><th>Emp No</th><th>From</th><th>To</th>' + data.days.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '<th>Sent</th><th></th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.empNo) + '</td><td>' + esc(nice(r.from)) + '</td><td>' + esc(nice(r.to)) + '</td>' +
+          data.days.map(function (d) { var v = r.days[d] || ''; return '<td class="' + cls(v) + '">' + esc(short(v)) + '</td>'; }).join('') +
+          '<td>' + esc(r.submitted) + '</td><td><button class="avdel" data-id="' + esc(r.id) + '" title="Delete so this person can send the form again">Delete</button></td></tr>';
+      }).join('') + '</tbody></table>';
+    Array.prototype.forEach.call(box.querySelectorAll('.avdel'), function (b) {
+      b.onclick = function () {
+        var r = data.rows.filter(function (x) { return x.id === b.getAttribute('data-id'); })[0];
+        if (!r || !confirm('Delete the availability of ' + r.name + '? They will be able to send the form again.')) return;
+        call({ kind: 'availdelete', id: r.id }).then(function (res) { if (res && res.ok) { data = res; draw(); } else msg((res && res.error) || 'Could not delete'); }).catch(function () { msg('No connection'); });
+      };
+    });
+  }
+  function load() {
+    if (!opPin()) {
+      var p = prompt('Onboard supervisor PIN (asked once on this computer):');
+      if (!p) { msg('The supervisor PIN is needed to see the answers.'); return; }
+      try { localStorage.setItem('roster_op_pin', p.trim()); } catch (e) {}
+    }
+    msg('Loading…');
+    call({ kind: 'availlist' }).then(function (res) {
+      if (res && res.ok) { data = res; msg(''); draw(); return; }
+      if (res && res.error === 'auth') { try { localStorage.removeItem('roster_op_pin'); } catch (e) {} msg('Wrong PIN — press Refresh and type it again.'); return; }
+      msg((res && res.error) || 'Could not load the answers. Is the Onboard Apps Script updated?');
+    }).catch(function () { msg('No connection to the Onboard backend.'); });
+  }
+  document.getElementById('availBtn').onclick = function () { panel.classList.toggle('open'); if (panel.classList.contains('open')) load(); };
+  document.getElementById('avClose').onclick = function () { panel.classList.remove('open'); };
+  document.getElementById('avRefresh').onclick = load;
+  document.getElementById('avSearch').oninput = draw;
+  document.getElementById('avCopyLink').onclick = function () {
+    var done = function () { msg(''); var b = document.getElementById('avCopyLink'); b.textContent = '✓ Link copied'; setTimeout(function () { b.textContent = '🔗 Copy form link'; }, 2000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(FORM_URL).then(done, function () { prompt('Copy the link:', FORM_URL); });
+    else prompt('Copy the link:', FORM_URL);
+  };
+})();
 </script>
 </body>
 </html>
