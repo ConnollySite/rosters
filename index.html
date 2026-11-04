@@ -2703,7 +2703,7 @@ window.addEventListener('focus', pollCloud);
     var q = document.getElementById('avSearch').value.trim().toLowerCase();
     var rows = data.rows.filter(function (r) { return !q || r.name.toLowerCase().indexOf(q) >= 0 || String(r.empNo).toLowerCase().indexOf(q) >= 0; })
       .sort(function (a, b) { return a.name.localeCompare(b.name); });
-    document.getElementById('avCount').textContent = data.rows.length + ' answer(s) · period ' + nice(data.from) + ' – ' + nice(data.to);
+    document.getElementById('avCount').textContent = data.rows.length + ' answer(s)';
     if (!rows.length) { box.innerHTML = '<div style="color:#666;font-size:12px;padding:6px 0">' + (data.rows.length ? 'Nobody matches the search.' : 'No answers yet. Send the form link to the students.') + '</div>'; return; }
     box.innerHTML = '<table><thead><tr><th>Name</th><th>Emp No</th><th>From</th><th>To</th>' + data.days.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '<th>Sent</th><th></th></tr></thead><tbody>' +
       rows.map(function (r) {
