@@ -35,6 +35,11 @@
   .done h2 { font-size: 20px; text-transform: none; letter-spacing: 0; color: var(--ink); margin: 8px 0; }
   .sum { text-align: left; margin-top: 14px; font-size: 14px; line-height: 1.6; }
   .hidden { display: none; }
+  .notice { background: #FFF8E6; border: 1.5px solid #F0C36D; border-radius: 14px; padding: 14px 16px; margin-top: 14px; font-size: 14px; line-height: 1.5; }
+  .notice > b { display: block; margin-bottom: 6px; font-size: 14.5px; }
+  .notice ul { margin: 0; padding-left: 18px; } .notice li { margin: 3px 0; }
+  .agree { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 14.5px; font-weight: 700; line-height: 1.4; cursor: pointer; }
+  .agree input { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--navy); }
 </style>
 </head>
 <body>
@@ -44,6 +49,13 @@
   <p id="intro">Tell us when you can work. You can send this form <b>only once</b>, so please check everything before you submit.</p>
 </div></header>
 <main>
+  <div class="notice"><b>Please read before you fill in</b><ul>
+    <li>This form is <b>not</b> a choice of shifts. It only tells us the earliest time you can start on each day.</li>
+    <li>"Available from 14:00" means you can start at 14:00 <b>or later</b>. It does not mean you will get a shift at 14:00.</li>
+    <li>Shifts are given according to the needs of the business. There is <b>no guarantee</b> of shifts on any day or at any time.</li>
+    <li>What you send will be used from now on, until your supervisor asks everyone to fill in a new form.</li>
+    <li>You can send it only once. To change anything, speak to your supervisor.</li>
+  </ul></div>
   <form id="f" autocomplete="off">
     <div class="card"><h2>You</h2>
       <div class="field"><label for="name">Full name</label><input id="name" maxlength="80" autocapitalize="words"></div>
@@ -57,13 +69,14 @@
       <div class="hint" id="range"></div>
     </div>
     <div class="card"><h2>Each day of the week</h2><div id="days"></div>
-      <div class="hint">"Available from 14:00" means you can start at 14:00 or later.</div>
+      <div class="hint">"Available from 14:00" means you can start at 14:00 or later — not that you will get a shift at 14:00.</div>
     </div>
+    <label class="agree"><input type="checkbox" id="agree"> I understand that this is not a choice of shifts, that shifts depend on the needs of the business and are not guaranteed, and that to change it I must speak to my supervisor.</label>
     <button type="submit" id="send">Submit</button>
     <div class="err" id="err"></div>
   </form>
   <div class="card done hidden" id="ok"><div class="tick">✓</div><h2>Thank you, your availability was sent</h2><div class="hint" id="okWhen"></div><div class="sum" id="okSum"></div>
-    <div class="hint" style="margin-top:14px">If something must change, speak to your supervisor.</div></div>
+    <div class="hint" style="margin-top:14px">This is not a choice of shifts and shifts are not guaranteed. If something must change, speak to your supervisor.</div></div>
 </main>
 <script>
 (function () {
@@ -104,6 +117,8 @@
     if (!d.from || !d.to || d.from < FROM || d.to > TO) { err.textContent = 'Choose dates between ' + nice(FROM) + ' and ' + nice(TO) + '.'; return; }
     if (d.to < d.from) { err.textContent = 'The "To" date is before the "From" date.'; return; }
     for (var i = 0; i < DAYS.length; i++) { var v = $('d_' + DAYS[i]).value; if (!v) { err.textContent = 'Choose an option for ' + FULL[DAYS[i]] + '.'; $('d_' + DAYS[i]).focus(); return; } d.days[DAYS[i]] = v; }
+    if (!$('agree').checked) { err.textContent = 'Tick "I understand" before you submit.'; $('agree').focus(); return; }
+    d.agreed = true;
     if (!confirm('You can only send this once. Send it now?')) return;
     $('send').disabled = true; $('send').textContent = 'Sending…';
     fetch(URL_, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(d) })
