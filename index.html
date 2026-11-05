@@ -526,6 +526,11 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
       <div id="empEditAvailList" style="display:flex;flex-direction:column;gap:6px;"></div>
       <button id="empEditAvailAddBtn" class="btn btn-dark" style="width:100%;margin-top:4px;">+ Add day restriction</button>
     </div>
+    <div>
+      <label class="modal-label">⚠ Bad match <span style="font-weight:normal;color:#6c757d;">(cannot work in the same shift — a MISMATCH warning appears if they are put together)</span></label>
+      <div id="empEditBadList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+      <div style="display:flex;gap:6px;"><select id="empEditBadSel" class="modal-select" style="flex:1;"></select><button id="empEditBadAddBtn" class="btn btn-red" style="flex:none;">+ Add</button></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-dark" id="empEditCancelBtn">Cancel</button>
       <button class="btn btn-blue" id="empEditSaveBtn">Save</button>
@@ -1578,8 +1583,9 @@ function renderPickerList(filterText) {
       const takenByOther = occ && occ !== empName && !isThisOne;
       if (!takenByOther) freeCount++;
       const swatch = shift.color ? `<span class="status-swatch" style="background:${esc(shift.color)}"></span>` : '';
+      const bad = isThisOne ? [] : mismatchesInShift(shift, dayIdx, empName, sli);
       rows += `<div class="picker-row ${takenByOther?'taken':''} ${isThisOne?'current':''}" data-si="${si}" data-sli="${sli}">
-        <span>${swatch}${esc(shift.slotNames[sli])}</span>
+        <span>${swatch}${esc(shift.slotNames[sli])}${bad.length ? ` <span style="color:#b02a37;font-weight:bold;font-size:11px;" title="Bad match with ${esc(bad.join(', '))}">⚠ MISMATCH</span>` : ''}</span>
         ${takenByOther ? `<span class="picker-occ">⇄ ${esc(occ)}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
       </div>`;
     });
@@ -1615,6 +1621,9 @@ function renderPickerList(filterText) {
     el.addEventListener('click', () => {
       const si = +el.dataset.si, sli = +el.dataset.sli;
       if (el.classList.contains('current')) { closePicker(); return; }
+      const bad = mismatchesInShift(tab.data[si], dayIdx, empName, sli);
+      if (bad.length && !confirm(`⚠ MISMATCH\n\n${empName} and ${bad.join(', ')} are marked as a bad match and should not work together in ${tab.data[si].title}.\n\nPut them together anyway?`)) return;
+      if (bad.length) logActivity('assign', `MISMATCH accepted: ${empName} with ${bad.join(', ')}`, ctxFor(si, sli, dayIdx));
       if (el.classList.contains('taken')) {
         const shift = tab.data[si];
         const occupant = shift.slots[sli][dayIdx];
@@ -2242,6 +2251,33 @@ function removeEmpByName(name) {
 // ── EMPLOYEE EDIT MODAL (name, number, category, group, availability) ────────
 let empEditTarget = null;
 let empEditAvailability = []; // working copy edited in the modal, committed on Save
+let empEditBad = [];          // working copy of the "bad match" list (names), committed on Save
+// Bad match: pairs of employees who must not work in the same shift. Kept in the global employeeMeta
+// (badMatch: [names]) on BOTH people, so the warning works whichever of the two is placed second.
+function badMatchesOf(name) {
+  const m = employeeMeta && employeeMeta[name];
+  return (m && Array.isArray(m.badMatch)) ? m.badMatch : [];
+}
+function isBadMatch(a, b) { return !!a && !!b && a !== b && (badMatchesOf(a).includes(b) || badMatchesOf(b).includes(a)); }
+// who in this shift, on this day, is a bad match for empName (the slot being replaced does not count)
+function mismatchesInShift(shift, dayIdx, empName, skipSli) {
+  const out = [];
+  shift.slots.forEach((row, sli) => { if (sli !== skipSli && isBadMatch(empName, row[dayIdx]) && !out.includes(row[dayIdx])) out.push(row[dayIdx]); });
+  return out;
+}
+function renderEmpEditBad() {
+  const box = document.getElementById('empEditBadList');
+  box.innerHTML = empEditBad.length
+    ? empEditBad.map((n, i) => `<span style="display:inline-flex;align-items:center;gap:4px;background:#f8d7da;color:#842029;border:1px solid #f1aeb5;border-radius:12px;padding:2px 4px 2px 10px;font-size:12px;font-weight:bold;">${esc(n)}<button class="bad-del" data-i="${i}" title="Remove" style="border:0;background:none;color:#842029;cursor:pointer;font-size:13px;">✕</button></span>`).join('')
+    : '<span style="font-size:12px;color:#6c757d;">None</span>';
+  box.querySelectorAll('.bad-del').forEach(b => b.addEventListener('click', () => { empEditBad.splice(+b.dataset.i, 1); renderEmpEditBad(); }));
+  const sel = document.getElementById('empEditBadSel');
+  sel.innerHTML = '<option value="">Choose a person…</option>' + currentEmployees().filter(n => n !== empEditTarget && !empEditBad.includes(n)).slice().sort().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+}
+document.getElementById('empEditBadAddBtn').addEventListener('click', () => {
+  const v = document.getElementById('empEditBadSel').value;
+  if (v && !empEditBad.includes(v)) { empEditBad.push(v); renderEmpEditBad(); }
+});
 function populateCategorySelect(sel, selected) {
   sel.innerHTML = '<option value="">— None —</option>' + categories.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
   sel.value = selected || '';
@@ -2284,6 +2320,8 @@ function openEmpEditModal(name) {
   document.getElementById('empEditWeekOnly').checked = !!currentTab().metaOverride[name] || Object.prototype.hasOwnProperty.call(currentTab().availability, name);
   empEditAvailability = JSON.parse(JSON.stringify(meta.availability || []));
   renderEmpEditAvailList();
+  empEditBad = badMatchesOf(name).filter(n => currentEmployees().includes(n));
+  renderEmpEditBad();
   document.getElementById('empEditModal').classList.add('open');
 }
 document.getElementById('empEditCancelBtn').addEventListener('click', () => document.getElementById('empEditModal').classList.remove('open'));
@@ -2323,6 +2361,8 @@ document.getElementById('empEditSaveBtn').addEventListener('click', () => {
     }));
     employeeMeta[newName] = employeeMeta[empEditTarget] || { empNo: '000000', category: '', group: '', availability: [] };
     delete employeeMeta[empEditTarget];
+    Object.keys(employeeMeta).forEach(k => { const b = employeeMeta[k] && employeeMeta[k].badMatch; if (Array.isArray(b)) employeeMeta[k].badMatch = b.map(x => x === empEditTarget ? newName : x); });
+    empEditBad = empEditBad.map(x => x === empEditTarget ? newName : x);
     logActivity('rename', `Employee renamed: "${empEditTarget}" → "${newName}"`, '');
     empEditTarget = newName;
   }
@@ -2330,6 +2370,12 @@ document.getElementById('empEditSaveBtn').addEventListener('click', () => {
   // Employee number is always global.
   const gm = getGlobalEmpMeta(empEditTarget);
   gm.empNo = no;
+  // Bad match is always global and kept on both people
+  const oldBad = badMatchesOf(empEditTarget).slice();
+  gm.badMatch = empEditBad.slice();
+  empEditBad.forEach(o => { const om = getGlobalEmpMeta(o); om.badMatch = Array.isArray(om.badMatch) ? om.badMatch : []; if (!om.badMatch.includes(empEditTarget)) om.badMatch.push(empEditTarget); });
+  oldBad.filter(o => !empEditBad.includes(o)).forEach(o => { const om = employeeMeta[o]; if (om && Array.isArray(om.badMatch)) om.badMatch = om.badMatch.filter(x => x !== empEditTarget); });
+  if (oldBad.join('|') !== empEditBad.join('|')) logActivity('edit', `Bad match of ${empEditTarget}: ${empEditBad.length ? empEditBad.join(', ') : 'none'}`, '');
 
   const tab = currentTab();
   ensureTabOverrides(tab);
