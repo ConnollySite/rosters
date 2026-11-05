@@ -1595,10 +1595,12 @@ function renderPickerList(filterText) {
       if (!takenByOther) freeCount++;
       const swatch = shift.color ? `<span class="status-swatch" style="background:${esc(shift.color)}"></span>` : '';
       const bad = isThisOne ? [] : mismatchesInShift(shift, dayIdx, empName, sli);
-      const mTip = bad.length ? `Mismatch: ${empName} (the person you are placing) must not work with ${bad.join(', ')} in this shift` : '';
+      // the M goes beside the person already in the shift who is a bad match with the one being placed
+      const occBad = takenByOther && isBadMatch(empName, occ);
+      const mTip = occBad ? `Mismatch: ${occ} must not work with ${empName} (the person you are placing)` : '';
       rows += `<div class="picker-row ${takenByOther?'taken':''} ${isThisOne?'current':''}" data-si="${si}" data-sli="${sli}">
-        <span>${swatch}${esc(shift.slotNames[sli])}${bad.length ? `<span class="picker-m" title="${esc(mTip)}" data-tip="${esc(mTip)}">M</span>` : ''}</span>
-        ${takenByOther ? `<span class="picker-occ">⇄ ${esc(occ)}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
+        <span>${swatch}${esc(shift.slotNames[sli])}</span>
+        ${takenByOther ? `<span class="picker-occ">⇄ ${esc(occ)}${occBad ? `<span class="picker-m" title="${esc(mTip)}" data-tip="${esc(mTip)}">M</span>` : ''}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
       </div>`;
     });
     if (!rows) return;
