@@ -1597,7 +1597,7 @@ function renderPickerList(filterText) {
       const bad = isThisOne ? [] : mismatchesInShift(shift, dayIdx, empName, sli);
       // the M goes beside the person already in the shift who is a bad match with the one being placed
       const occBad = takenByOther && isBadMatch(empName, occ);
-      const mTip = occBad ? `Mismatch: ${occ} must not work with ${empName} (the person you are placing)` : '';
+      const mTip = occBad ? `Mismatch: ${occ} must not work with ${empName}` : '';
       rows += `<div class="picker-row ${takenByOther?'taken':''} ${isThisOne?'current':''}" data-si="${si}" data-sli="${sli}">
         <span>${swatch}${esc(shift.slotNames[sli])}</span>
         ${takenByOther ? `<span class="picker-occ">⇄ ${esc(occ)}${occBad ? `<span class="picker-m" title="${esc(mTip)}" data-tip="${esc(mTip)}">M</span>` : ''}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
@@ -1639,7 +1639,7 @@ function renderPickerList(filterText) {
       if (el.classList.contains('current')) { closePicker(); return; }
       if (isDayOff(empName, dayIdx) && !confirm(`${empName} is NOT available on ${DAYS[dayIdx]} (all day).\n\nAssign anyway?`)) return;
       const bad = mismatchesInShift(tab.data[si], dayIdx, empName, sli);
-      if (bad.length && !confirm(`⚠ MISMATCH\n\n${empName} (the person you are placing) is marked as a bad match with ${bad.join(', ')}, who is already in ${tab.data[si].title} on this day.\n\nPut them together anyway?`)) return;
+      if (bad.length && !confirm(`⚠ MISMATCH\n\n${empName} is marked as a bad match with ${bad.join(', ')}, who is already in ${tab.data[si].title} on this day.\n\nPut them together anyway?`)) return;
       if (bad.length) logActivity('assign', `MISMATCH accepted: ${empName} with ${bad.join(', ')}`, ctxFor(si, sli, dayIdx));
       if (el.classList.contains('taken')) {
         const shift = tab.data[si];
