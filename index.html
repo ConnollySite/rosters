@@ -202,7 +202,10 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
 .mgr-shift-hours { color: #6c757d; font-size: 10px; }
 .avail-row { display: flex; gap: 5px; align-items: center; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 6px; }
 .avail-row select { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; }
-.avail-row input[type="time"] { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; width: 78px; }
+.avail-row input[type="time"] { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 2px; font-size: 11px; width: 70px; min-width: 0; }
+.avail-row .avail-off { display: flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; cursor: pointer; }
+.avail-row input[type="time"]:disabled { opacity: .35; }
+.add-cell-btn.unavail { color: #b02a37; border-color: #f1aeb5; background: #fff5f5; }
 .avail-row button { background: #dc3545; color: #fff; border: none; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; cursor: pointer; flex-shrink: 0; }
 .avail-badge { display: inline-block; margin-left: 3px; font-size: 10px; }
 .mgr-status-color { width: 30px; height: 30px; padding: 0; border: 1px solid #ced4da; border-radius: 5px; cursor: pointer; flex-shrink: 0; background: none; }
@@ -228,6 +231,7 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
 .picker-row.taken .picker-occ { color: #fd7e14; font-style: normal; font-weight: bold; }
 .picker-row.current { background: #d1e7dd; font-weight: bold; }
 .picker-row .picker-occ { font-size: 10.5px; color: #adb5bd; font-style: italic; }
+.picker-m { display: inline-block; width: 15px; height: 15px; line-height: 15px; margin-left: 5px; border-radius: 50%; background: #dc3545; color: #fff; font-size: 9.5px; font-weight: bold; text-align: center; vertical-align: 1px; cursor: help; }
 .picker-empty { padding: 14px; text-align: center; color: #adb5bd; font-size: 12px; font-style: italic; }
 
 /* ── Shared floating TOOLTIP (shift occupancy) ── */
@@ -918,10 +922,16 @@ function hasRestViolation(tab, empName, di) {
 }
 // True if any shift the employee is assigned to on day di falls outside a
 // declared availability restriction for that day (e.g. only free 10:00–18:00).
+// "All day" restriction: not available at all on that day of the week
+function isDayOff(empName, di) {
+  const r = (getEmpMeta(empName).availability || []).find(a => a.day === di);
+  return !!(r && r.off);
+}
 function hasAvailabilityViolation(tab, empName, di, matches) {
   const meta = getEmpMeta(empName);
   const restriction = (meta.availability || []).find(a => a.day === di);
   if (!restriction) return false;
+  if (restriction.off) return matches.length > 0;
   const winStart = timeToMinutes(restriction.start), winEnd = timeToMinutes(restriction.end);
   if (winStart === null || winEnd === null) return false;
   return matches.some(m => {
@@ -941,6 +951,7 @@ function describeAvailabilityViolation(tab, empName, di, matches) {
   if (!restriction) return 'Outside this employee\'s declared availability';
   const specificLabel = currentDayLabels()[di];
   const dayLabel = (specificLabel && specificLabel !== DAYS[di]) ? `${DAYS[di]} (${specificLabel})` : DAYS[di];
+  if (restriction.off) return `Not available on ${dayLabel} (all day)`;
   const winStart = restriction.start || '?', winEnd = restriction.end || '?';
   const conflicting = matches.map(m => tab.data[m.si]).filter(shift => {
     const s = timeToMinutes(shift.startTime), f = timeToMinutes(shift.finishTime);
@@ -1584,8 +1595,9 @@ function renderPickerList(filterText) {
       if (!takenByOther) freeCount++;
       const swatch = shift.color ? `<span class="status-swatch" style="background:${esc(shift.color)}"></span>` : '';
       const bad = isThisOne ? [] : mismatchesInShift(shift, dayIdx, empName, sli);
+      const mTip = bad.length ? `Mismatch: ${empName} (the person you are placing) must not work with ${bad.join(', ')} in this shift` : '';
       rows += `<div class="picker-row ${takenByOther?'taken':''} ${isThisOne?'current':''}" data-si="${si}" data-sli="${sli}">
-        <span>${swatch}${esc(shift.slotNames[sli])}${bad.length ? ` <span style="color:#b02a37;font-weight:bold;font-size:11px;" title="Bad match with ${esc(bad.join(', '))}">⚠ MISMATCH</span>` : ''}</span>
+        <span>${swatch}${esc(shift.slotNames[sli])}${bad.length ? `<span class="picker-m" title="${esc(mTip)}" data-tip="${esc(mTip)}">M</span>` : ''}</span>
         ${takenByOther ? `<span class="picker-occ">⇄ ${esc(occ)}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
       </div>`;
     });
@@ -1617,12 +1629,15 @@ function renderPickerList(filterText) {
       closePicker();
     });
   });
+  // tapping the M explains it (on phones there is no mouse-over) without choosing the slot
+  pickerList.querySelectorAll('.picker-m').forEach(m => m.addEventListener('click', e => { e.stopPropagation(); alert(m.dataset.tip); }));
   pickerList.querySelectorAll('.picker-row:not(.status-row)').forEach(el => {
     el.addEventListener('click', () => {
       const si = +el.dataset.si, sli = +el.dataset.sli;
       if (el.classList.contains('current')) { closePicker(); return; }
+      if (isDayOff(empName, dayIdx) && !confirm(`${empName} is NOT available on ${DAYS[dayIdx]} (all day).\n\nAssign anyway?`)) return;
       const bad = mismatchesInShift(tab.data[si], dayIdx, empName, sli);
-      if (bad.length && !confirm(`⚠ MISMATCH\n\n${empName} and ${bad.join(', ')} are marked as a bad match and should not work together in ${tab.data[si].title}.\n\nPut them together anyway?`)) return;
+      if (bad.length && !confirm(`⚠ MISMATCH\n\n${empName} (the person you are placing) is marked as a bad match with ${bad.join(', ')}, who is already in ${tab.data[si].title} on this day.\n\nPut them together anyway?`)) return;
       if (bad.length) logActivity('assign', `MISMATCH accepted: ${empName} with ${bad.join(', ')}`, ctxFor(si, sli, dayIdx));
       if (el.classList.contains('taken')) {
         const shift = tab.data[si];
@@ -1731,7 +1746,7 @@ function renderRoster() {
           </div>`;
         }).join('');
         const addBtn = matches.length === 0
-          ? `<div class="add-cell-btn" data-emp="${esc(emp)}" data-di="${di}">+ Add</div>`
+          ? (isDayOff(emp, di) ? `<div class="add-cell-btn unavail" data-emp="${esc(emp)}" data-di="${di}" title="Not available on this day (all day)">✕ Unavailable</div>` : `<div class="add-cell-btn" data-emp="${esc(emp)}" data-di="${di}">+ Add</div>`)
           : (allowExceptions ? `<div class="add-cell-btn small" data-emp="${esc(emp)}" data-di="${di}">+</div>` : '');
         cellInner = `${chipsHtml}${addBtn}`;
       }
@@ -2294,9 +2309,10 @@ function renderEmpEditAvailList() {
         <select class="avail-day" data-i="${i}">
           ${DAYS.map((d, di) => `<option value="${di}"${a.day===di?' selected':''}>${esc(d)}</option>`).join('')}
         </select>
-        <input type="time" class="avail-start" data-i="${i}" value="${esc(a.start||'')}" />
+        <input type="time" class="avail-start" data-i="${i}" value="${esc(a.start||'')}"${a.off?' disabled':''} />
         <span>–</span>
-        <input type="time" class="avail-end" data-i="${i}" value="${esc(a.end||'')}" />
+        <input type="time" class="avail-end" data-i="${i}" value="${esc(a.end||'')}"${a.off?' disabled':''} />
+        <label class="avail-off" title="Not available at all on this day"><input type="checkbox" class="avail-offcb" data-i="${i}"${a.off?' checked':''}> All day</label>
         <button class="avail-del" data-i="${i}" title="Remove">✕</button>
       </div>`).join('')
     : `<span style="color:#6c757d;font-size:12px;">No restrictions — free every day.</span>`;
@@ -2304,6 +2320,7 @@ function renderEmpEditAvailList() {
   el.querySelectorAll('.avail-start').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].start = e.target.value; }));
   el.querySelectorAll('.avail-end').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].end = e.target.value; }));
   el.querySelectorAll('.avail-del').forEach(btn => btn.addEventListener('click', () => { empEditAvailability.splice(+btn.dataset.i, 1); renderEmpEditAvailList(); }));
+  el.querySelectorAll('.avail-offcb').forEach(cb => cb.addEventListener('change', e => { const a = empEditAvailability[+e.target.dataset.i]; if (e.target.checked) a.off = true; else { delete a.off; if (!a.start) a.start = '10:00'; if (!a.end) a.end = '18:00'; } renderEmpEditAvailList(); }));
 }
 document.getElementById('empEditAvailAddBtn').addEventListener('click', () => {
   empEditAvailability.push({ day: 0, start: '10:00', end: '18:00' });
@@ -2379,7 +2396,7 @@ document.getElementById('empEditSaveBtn').addEventListener('click', () => {
 
   const tab = currentTab();
   ensureTabOverrides(tab);
-  const newAvailability = empEditAvailability.filter(a => a.start && a.end).map(a => ({ day: a.day, start: a.start, end: a.end }));
+  const newAvailability = empEditAvailability.filter(a => a.off || (a.start && a.end)).map(a => a.off ? { day: a.day, off: true, start: '', end: '' } : { day: a.day, start: a.start, end: a.end });
   if (weekOnly) {
     // Scope category/group/availability to this week (tab) only — global
     // default and every other week are left untouched.
