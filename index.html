@@ -2756,6 +2756,7 @@ window.addEventListener('focus', pollCloud);
 (function () {
   var AV_URL = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
   var FORM_URL = 'https://connollysite.github.io/rosters/availability.html';
+  var AV_ORDER = ['Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu'];   // roster week: Friday to Thursday
   var panel = document.getElementById('availPanel'), data = null;
   function opPin() { try { return localStorage.getItem('roster_op_pin') || ''; } catch (e) { return ''; } }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -2774,10 +2775,10 @@ window.addEventListener('focus', pollCloud);
       .sort(function (a, b) { return a.name.localeCompare(b.name); });
     document.getElementById('avCount').textContent = data.rows.length + ' answer(s)';
     if (!rows.length) { box.innerHTML = '<div style="color:#666;font-size:12px;padding:6px 0">' + (data.rows.length ? 'Nobody matches the search.' : 'No answers yet. Send the form link to the students.') + '</div>'; return; }
-    box.innerHTML = '<table><thead><tr><th>Name</th><th>Emp No</th><th>From</th><th>To</th>' + data.days.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '<th>Sent</th><th></th></tr></thead><tbody>' +
+    box.innerHTML = '<table><thead><tr><th>Name</th><th>Emp No</th><th>From</th><th>To</th>' + AV_ORDER.map(function (d) { return '<th>' + d + '</th>'; }).join('') + '<th>Sent</th><th></th></tr></thead><tbody>' +
       rows.map(function (r) {
         return '<tr><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.empNo) + '</td><td>' + esc(nice(r.from)) + '</td><td>' + esc(nice(r.to)) + '</td>' +
-          data.days.map(function (d) { var v = r.days[d] || ''; return '<td class="' + cls(v) + '">' + esc(short(v)) + '</td>'; }).join('') +
+          AV_ORDER.map(function (d) { var v = r.days[d] || ''; return '<td class="' + cls(v) + '">' + esc(short(v)) + '</td>'; }).join('') +
           '<td>' + esc(r.submitted) + '</td><td><button class="avdel" data-id="' + esc(r.id) + '" title="Delete so this person can send the form again">Delete</button></td></tr>';
       }).join('') + '</tbody></table>';
     Array.prototype.forEach.call(box.querySelectorAll('.avdel'), function (b) {

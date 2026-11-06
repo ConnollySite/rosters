@@ -82,7 +82,8 @@
 (function () {
   var URL_ = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
   var FROM = '2026-11-01', TO = '';   // TO empty = no end date
-  var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], FULL = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+  var DAYS = ['Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu'],   // roster week: Friday to Thursday
+      FULL = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
   var OPTS = ['Available anytime', 'Not available', 'Available from 10:00', 'Available from 11:00', 'Available from 12:00', 'Available from 14:00', 'Available from 16:00'];
   var KEY = 'avail_sent_2026_nov_dec';
   var $ = function (id) { return document.getElementById(id); };
