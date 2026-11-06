@@ -932,8 +932,10 @@ function hasAvailabilityViolation(tab, empName, di, matches) {
   const restriction = (meta.availability || []).find(a => a.day === di);
   if (!restriction) return false;
   if (restriction.off) return matches.length > 0;
-  const winStart = timeToMinutes(restriction.start), winEnd = timeToMinutes(restriction.end);
+  const winStart = timeToMinutes(restriction.start);
+  let winEnd = timeToMinutes(restriction.end);
   if (winStart === null || winEnd === null) return false;
+  if (winEnd <= winStart) winEnd += 24 * 60;   // window past midnight, e.g. 16:00–00:00 or 18:00–02:00
   return matches.some(m => {
     const shift = tab.data[m.si];
     const s = timeToMinutes(shift.startTime), f = timeToMinutes(shift.finishTime);
@@ -956,8 +958,10 @@ function describeAvailabilityViolation(tab, empName, di, matches) {
   const conflicting = matches.map(m => tab.data[m.si]).filter(shift => {
     const s = timeToMinutes(shift.startTime), f = timeToMinutes(shift.finishTime);
     if (s === null || f === null) return false;
-    const winS = timeToMinutes(restriction.start), winE = timeToMinutes(restriction.end);
+    const winS = timeToMinutes(restriction.start);
+    let winE = timeToMinutes(restriction.end);
     if (winS === null || winE === null) return false;
+    if (winE <= winS) winE += 24 * 60;
     let end = f; if (end <= s) end += 24 * 60;
     return s < winS || end > winE;
   });
