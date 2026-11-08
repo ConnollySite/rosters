@@ -2899,11 +2899,38 @@ window.addEventListener('focus', pollCloud);
      Anytime = no restriction · Not available = "Not available" (all day) · From 14:00 = window 14:00 → 06:00 next morning.
      The employee is found by employee number, then by name; if missing, they can be added. */
   var AV_END = '06:00';
+  // Found ONLY by employee number (names are often spelled differently). When the number is not in any
+  // employee's details yet, the supervisor picks the person once and the number is saved on them.
+  function normNo(x) { return String(x || '').replace(/\s+/g, '').replace(/^0+(?=\d)/, '').toUpperCase(); }
   function findEmp(r) {
-    var no = String(r.empNo || '').replace(/\s+/g, '').toUpperCase(), nm = String(r.name || '').trim().toLowerCase();
-    var byNo = currentEmployees().filter(function (n) { var m = employeeMeta[n]; return no && m && String(m.empNo || '').replace(/\s+/g, '').toUpperCase() === no; })[0];
-    if (byNo) return byNo;
-    return currentEmployees().filter(function (n) { return n.trim().toLowerCase() === nm; })[0] || null;
+    var no = normNo(r.empNo);
+    if (!no) return null;
+    return currentEmployees().filter(function (n) { var m = employeeMeta[n]; return m && normNo(m.empNo) === no; })[0] || null;
+  }
+  // closest names first: same first name, then shared words, then shared start
+  function nameScore(a, b) {
+    var A = String(a).toLowerCase().split(/\s+/), B = String(b).toLowerCase().split(/\s+/), sc = 0;
+    if (A[0] && A[0] === B[0]) sc += 10;
+    A.forEach(function (w) { if (w.length > 2 && B.indexOf(w) >= 0) sc += 5; B.forEach(function (v) { if (w.length > 2 && v.slice(0, 3) === w.slice(0, 3)) sc += 1; }); });
+    return sc;
+  }
+  function pickEmployee(r) {
+    return new Promise(function (resolve) {
+      var list = currentEmployees().filter(function (n) { return n !== 'Not Operating'; }).map(function (n) { return { n: n, s: nameScore(r.name, n) }; })
+        .sort(function (a, b) { return b.s - a.s || a.n.localeCompare(b.n); });
+      var bg = document.createElement('div');
+      bg.className = 'modal-backdrop open';
+      bg.innerHTML = '<div class="modal-box w340"><div class="modal-title">Who is this?</div>' +
+        '<p style="margin:0 0 10px;font-size:13px;">The form was sent by <b>' + esc(r.name) + '</b>, employee number <b>' + esc(r.empNo) + '</b>. No employee has this number yet.<br>Choose the person — the number will be saved on them, so next time it is automatic.</p>' +
+        '<select class="modal-select" id="pkSel" size="8" style="width:100%;height:auto;">' + list.map(function (x, i) { return '<option value="' + esc(x.n) + '"' + (i === 0 ? ' selected' : '') + '>' + esc(x.n) + (employeeMeta[x.n] && employeeMeta[x.n].empNo && employeeMeta[x.n].empNo !== '000000' ? ' (' + esc(employeeMeta[x.n].empNo) + ')' : '') + '</option>'; }).join('') + '</select>' +
+        '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;"><button class="btn btn-blue" id="pkOk" style="flex:1;">✓ This person</button><button class="btn btn-dark" id="pkNew">+ New employee</button><button class="btn" id="pkSkip" style="background:#e9ecef;">Skip</button></div></div>';
+      document.body.appendChild(bg);
+      function close(v) { bg.remove(); resolve(v); }
+      bg.querySelector('#pkOk').onclick = function () { var v = bg.querySelector('#pkSel').value; if (v) close({ name: v }); };
+      bg.querySelector('#pkSel').ondblclick = function () { bg.querySelector('#pkOk').click(); };
+      bg.querySelector('#pkNew').onclick = function () { close({ create: true }); };
+      bg.querySelector('#pkSkip').onclick = function () { close(null); };
+    });
   }
   function restrictionsOf(r) {
     var out = [];
@@ -2917,19 +2944,22 @@ window.addEventListener('focus', pollCloud);
     out.forEach(function (a) { if (r.from) a.from = r.from; if (r.to) a.to = r.to; a.src = 'form'; });
     return out;
   }
-  function importRows(rows) {
+  async function importRows(rows) {
     var done = [], added = [], skipped = [];
-    rows.forEach(function (r) {
-      var name = findEmp(r);
+    for (var k = 0; k < rows.length; k++) {
+      var r = rows[k], name = findEmp(r);
       if (!name) {
-        if (!confirm(r.name + ' (' + r.empNo + ') is not in the employee list.\n\nAdd as a new employee?')) { skipped.push(r.name); return; }
-        name = String(r.name).trim(); employees.push(name); getGlobalEmpMeta(name).empNo = String(r.empNo || '').trim(); added.push(name);
+        var pick = await pickEmployee(r);
+        if (!pick) { skipped.push(r.name); continue; }
+        if (pick.create) { name = String(r.name).trim(); if (!employees.includes(name)) employees.push(name); added.push(name); }
+        else name = pick.name;
+        getGlobalEmpMeta(name).empNo = String(r.empNo || '').trim();   // next time: found by the number
       }
       // replaces what came from an earlier form; restrictions typed by hand (without the form) are kept
       var gm = getGlobalEmpMeta(name);
       gm.availability = (gm.availability || []).filter(function (a) { return a.src !== 'form'; }).concat(restrictionsOf(r));
       done.push(name);
-    });
+    }
     if (!done.length) { msg(skipped.length ? 'Nothing imported.' : ''); return; }
     logActivity('edit', 'Availability imported from the form: ' + done.join(', '), '');
     saveData(); render();
