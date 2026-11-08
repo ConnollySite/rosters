@@ -1319,6 +1319,7 @@ async function loadData() {
     try { const saved = lsGet(STORAGE_KEY); if (saved) parsed = JSON.parse(saved); } catch (e) { console.error('Local load error:', e); }
   }
   applyParsedState(parsed);
+  restoreLastView();
   document.getElementById('userLabel').textContent = currentUser ? '👤 ' + currentUser : '';
   if (cloudOn) {
     if (cloudOk) {
@@ -2620,7 +2621,23 @@ function render() {
   renderCore();
   if (lastSnap !== null) lastSnap = stateSnap(); // tidy-ups done while drawing are not undo steps
 }
+// Open on the week used last on this device (or, the first time, on the newest period)
+const LAST_VIEW_KEY = 'roster_last_view';
+function restoreLastView() {
+  if (!periods.length) return;
+  let v = null; try { v = JSON.parse(localStorage.getItem(LAST_VIEW_KEY) || 'null'); } catch (e) {}
+  let pi = v ? periods.findIndex(p => p.name === v.period) : -1;
+  if (pi < 0) pi = periods.length - 1;
+  activePeriod = pi;
+  const tabs = periods[pi].tabs || [];
+  let ti = v && v.period === periods[pi].name ? tabs.findIndex(t => t.name === v.tab) : -1;
+  activeTab = ti >= 0 ? ti : 0;
+}
+function saveLastView() {
+  try { const p = periods[activePeriod], t = p && p.tabs[activeTab]; if (t) localStorage.setItem(LAST_VIEW_KEY, JSON.stringify({ period: p.name, tab: t.name })); } catch (e) {}
+}
 function renderCore() {
+  saveLastView();
   if (autoFillShiftTimes()) saveData(true);
   renderPeriodBar(); renderTabBar(); renderCategoryLegend();
   const rv = document.getElementById('rosterView');
