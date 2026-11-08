@@ -58,7 +58,10 @@
   </ul></div>
   <form id="f" autocomplete="off">
     <div class="card"><h2>You</h2>
-      <div class="field"><label for="name">Full name</label><input id="name" maxlength="80" autocapitalize="words"></div>
+      <div class="two">
+        <div class="field"><label for="fname">First name</label><input id="fname" maxlength="40" autocapitalize="words" autocomplete="given-name"></div>
+        <div class="field"><label for="lname">Last name</label><input id="lname" maxlength="40" autocapitalize="words" autocomplete="family-name"></div>
+      </div>
       <div class="field"><label for="emp">Employee number</label><input id="emp" maxlength="20" inputmode="text" autocapitalize="characters"></div>
     </div>
     <div class="card"><h2>Dates</h2>
@@ -115,8 +118,10 @@
   $('f').onsubmit = function (ev) {
     ev.preventDefault();
     var err = $('err'); err.textContent = '';
-    var d = { kind: 'availability', name: $('name').value.trim(), empNo: $('emp').value.trim(), from: $('from').value, to: $('to').value, days: {} };
-    if (d.name.length < 3) { err.textContent = 'Write your full name.'; return; }
+    var fn = $('fname').value.replace(/\s+/g, ' ').trim(), ln = $('lname').value.replace(/\s+/g, ' ').trim();
+    if (!fn) { err.textContent = 'Write your first name.'; $('fname').focus(); return; }
+    if (!ln) { err.textContent = 'Write your last name.'; $('lname').focus(); return; }
+    var d = { kind: 'availability', name: fn + ' ' + ln, firstName: fn, lastName: ln, empNo: $('emp').value.trim(), from: $('from').value, to: $('to').value, days: {} };
     if (!d.empNo) { err.textContent = 'Write your employee number.'; return; }
     if (!d.from || !d.to) { err.textContent = 'Choose the "From" and the "To" dates.'; return; }
     if (d.from < FROM || (TO && d.to > TO)) { err.textContent = TO ? 'Choose dates between ' + nice(FROM) + ' and ' + nice(TO) + '.' : 'The "From" date must be ' + nice(FROM) + ' or later.'; return; }
