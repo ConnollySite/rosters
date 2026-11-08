@@ -2319,7 +2319,7 @@ function renderEmpEditAvailList() {
         <input type="time" class="avail-start" data-i="${i}" value="${esc(a.start||'')}"${a.off?' disabled':''} />
         <span>–</span>
         <input type="time" class="avail-end" data-i="${i}" value="${esc(a.end||'')}"${a.off?' disabled':''} />
-        <label class="avail-off" title="Not available at all on this day"><input type="checkbox" class="avail-offcb" data-i="${i}"${a.off?' checked':''}> All day</label>
+        <label class="avail-off" title="NOT available at all on this day"><input type="checkbox" class="avail-offcb" data-i="${i}"${a.off?' checked':''}> Not available</label>
         <button class="avail-del" data-i="${i}" title="Remove">✕</button>
       </div>`).join('')
     : `<span style="color:#6c757d;font-size:12px;">No restrictions — free every day.</span>`;
