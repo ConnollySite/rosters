@@ -200,7 +200,9 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
 .mgr-shift-times { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #495057; padding: 4px 0; }
 .mgr-shift-times input[type="time"] { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; }
 .mgr-shift-hours { color: #6c757d; font-size: 10px; }
-.avail-row { display: flex; gap: 5px; align-items: center; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 6px; }
+.avail-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 6px; }
+.avail-row .avail-dates { flex-basis: 100%; display: flex; align-items: center; gap: 4px; font-size: 11px; color: #555; }
+.avail-row .avail-dates input { border: 1px solid #ced4da; border-radius: 4px; padding: 2px 3px; font-size: 11px; width: 112px; }
 .avail-row select { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; }
 .avail-row input[type="time"] { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 2px; font-size: 11px; width: 70px; min-width: 0; }
 .avail-row .avail-off { display: flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; cursor: pointer; }
@@ -390,6 +392,7 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
     <input id="avSearch" type="search" placeholder="Search name or number…">
     <button class="btn btn-blue" id="avRefresh">↻ Refresh</button>
     <button class="btn btn-green" id="avCopyLink">🔗 Copy form link</button>
+    <button class="btn btn-purple" id="avImportAll">⬇ Import all into restrictions</button>
     <button class="btn btn-dark" id="avClose">✕ Close</button>
   </div>
   <div id="avMsg"></div>
@@ -922,14 +925,43 @@ function hasRestViolation(tab, empName, di) {
 }
 // True if any shift the employee is assigned to on day di falls outside a
 // declared availability restriction for that day (e.g. only free 10:00–18:00).
-// "All day" restriction: not available at all on that day of the week
+// Date of each day of a week (tab), worked out from the typed day headers ("Fri 28"):
+// the Friday with that day number nearest to today. Null when the header has no number.
+function tabWeekStartISO(tab) {
+  ensureDayLabels(tab);
+  const m = /(\d{1,2})/.exec(tab.dayLabels[0] || '');
+  if (!m) return null;
+  const want = +m[1], now = new Date(); now.setHours(12, 0, 0, 0);
+  let best = null;
+  for (let k = -200; k <= 200; k++) {
+    const d = new Date(now.getTime() + k * 86400000);
+    if (d.getDay() === 5 && d.getDate() === want && (!best || Math.abs(k) < Math.abs(best.k))) best = { k, d };
+  }
+  if (!best) return null;
+  const d = best.d; return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dayISO(tab, di) {
+  const ws = tabWeekStartISO(tab); if (!ws) return null;
+  const d = new Date(ws + 'T12:00:00'); d.setDate(d.getDate() + di);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// The restriction that counts for this employee on day di of this week: one with dates only
+// applies between its dates (and only when the week's date is known); a dated one wins over a plain one.
+function restrictionFor(empName, di, tab) {
+  const list = (getEmpMeta(empName).availability || []).filter(a => a.day === di);
+  if (!list.length) return null;
+  const date = dayISO(tab || currentTab(), di);
+  const dated = list.filter(a => (a.from || a.to) && date && (!a.from || date >= a.from) && (!a.to || date <= a.to));
+  if (dated.length) return dated[0];
+  return list.filter(a => !a.from && !a.to)[0] || null;
+}
+// "Not available" restriction: not available at all on that day
 function isDayOff(empName, di) {
-  const r = (getEmpMeta(empName).availability || []).find(a => a.day === di);
+  const r = restrictionFor(empName, di);
   return !!(r && r.off);
 }
 function hasAvailabilityViolation(tab, empName, di, matches) {
-  const meta = getEmpMeta(empName);
-  const restriction = (meta.availability || []).find(a => a.day === di);
+  const restriction = restrictionFor(empName, di, tab);
   if (!restriction) return false;
   if (restriction.off) return matches.length > 0;
   const winStart = timeToMinutes(restriction.start);
@@ -948,8 +980,7 @@ function hasAvailabilityViolation(tab, empName, di, matches) {
 // warning icon, e.g. "Only available 10:00–18:00 on Fri — this shift is
 // 08:00–16:00", shown as a tooltip on hover so the reason isn't hidden.
 function describeAvailabilityViolation(tab, empName, di, matches) {
-  const meta = getEmpMeta(empName);
-  const restriction = (meta.availability || []).find(a => a.day === di);
+  const restriction = restrictionFor(empName, di, tab);
   if (!restriction) return 'Outside this employee\'s declared availability';
   const specificLabel = currentDayLabels()[di];
   const dayLabel = (specificLabel && specificLabel !== DAYS[di]) ? `${DAYS[di]} (${specificLabel})` : DAYS[di];
@@ -1378,7 +1409,8 @@ function renderTabBar() {
   currentTabs().forEach((t, i) => {
     const div = document.createElement('div');
     div.className = 'tab' + (i === activeTab ? ' active' : '');
-    div.innerHTML = `<span class="tab-name">${esc(t.name)}</span>` +
+    const ws = tabWeekStartISO(t), wsTxt = ws ? (() => { const d = new Date(ws + 'T12:00:00'); return d.getDate() + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]; })() : '';
+    div.innerHTML = `<span class="tab-name">${esc(t.name)}</span>` + (wsTxt ? `<span style="font-size:10px;opacity:.7;margin-left:4px;" title="Week starts Friday ${esc(wsTxt)} (from the day headers)">${esc(wsTxt)}</span>` : '') +
       (currentTabs().length > 1 ? `<span class="del-tab" data-i="${i}" title="Delete tab">✕</span>` : '');
     div.querySelector('.tab-name').addEventListener('dblclick', () => startRenameTab(i));
     div.addEventListener('click', e => { if (e.target.classList.contains('del-tab')) return; activeTab = i; render(); });
@@ -2321,12 +2353,15 @@ function renderEmpEditAvailList() {
         <input type="time" class="avail-end" data-i="${i}" value="${esc(a.end||'')}"${a.off?' disabled':''} />
         <label class="avail-off" title="NOT available at all on this day"><input type="checkbox" class="avail-offcb" data-i="${i}"${a.off?' checked':''}> Not available</label>
         <button class="avail-del" data-i="${i}" title="Remove">✕</button>
+        <div class="avail-dates"><span title="Optional: the restriction only counts between these dates. Empty = always.">from</span> <input type="date" class="avail-from" data-i="${i}" value="${esc(a.from||'')}"> to <input type="date" class="avail-to" data-i="${i}" value="${esc(a.to||'')}"></div>
       </div>`).join('')
     : `<span style="color:#6c757d;font-size:12px;">No restrictions — free every day.</span>`;
   el.querySelectorAll('.avail-day').forEach(sel => sel.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].day = +e.target.value; }));
   el.querySelectorAll('.avail-start').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].start = e.target.value; }));
   el.querySelectorAll('.avail-end').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].end = e.target.value; }));
   el.querySelectorAll('.avail-del').forEach(btn => btn.addEventListener('click', () => { empEditAvailability.splice(+btn.dataset.i, 1); renderEmpEditAvailList(); }));
+  el.querySelectorAll('.avail-from').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].from = e.target.value; }));
+  el.querySelectorAll('.avail-to').forEach(inp => inp.addEventListener('change', e => { empEditAvailability[+e.target.dataset.i].to = e.target.value; }));
   el.querySelectorAll('.avail-offcb').forEach(cb => cb.addEventListener('change', e => { const a = empEditAvailability[+e.target.dataset.i]; if (e.target.checked) a.off = true; else { delete a.off; if (!a.start) a.start = '10:00'; if (!a.end) a.end = '18:00'; } renderEmpEditAvailList(); }));
 }
 document.getElementById('empEditAvailAddBtn').addEventListener('click', () => {
@@ -2403,7 +2438,12 @@ document.getElementById('empEditSaveBtn').addEventListener('click', () => {
 
   const tab = currentTab();
   ensureTabOverrides(tab);
-  const newAvailability = empEditAvailability.filter(a => a.off || (a.start && a.end)).map(a => a.off ? { day: a.day, off: true, start: '', end: '' } : { day: a.day, start: a.start, end: a.end });
+  const newAvailability = empEditAvailability.filter(a => a.off || (a.start && a.end)).map(a => {
+    const o = a.off ? { day: a.day, off: true, start: '', end: '' } : { day: a.day, start: a.start, end: a.end };
+    if (a.from) o.from = a.from; if (a.to) o.to = a.to;   // optional dates: only between these days
+    if (a.src) o.src = a.src;
+    return o;
+  });
   if (weekOnly) {
     // Scope category/group/availability to this week (tab) only — global
     // default and every other week are left untouched.
@@ -2796,9 +2836,12 @@ window.addEventListener('focus', pollCloud);
       rows.map(function (r) {
         return '<tr><td><b>' + esc(r.name) + '</b></td><td>' + esc(r.empNo) + '</td><td>' + esc(nice(r.from)) + '</td><td>' + esc(nice(r.to)) + '</td>' +
           AV_ORDER.map(function (d) { var v = r.days[d] || ''; return '<td class="' + cls(v) + '">' + esc(short(v)) + '</td>'; }).join('') +
-          '<td>' + esc(r.submitted) + '</td><td><button class="avdel" data-id="' + esc(r.id) + '" title="Delete so this person can send the form again">Delete</button></td></tr>';
+          '<td>' + esc(r.submitted) + '</td><td style="white-space:nowrap"><button class="avdel avimp" data-imp="' + esc(r.id) + '" title="Put these answers in the employee\'s availability restrictions">⬇ Import</button> <button class="avdel" data-id="' + esc(r.id) + '" title="Delete so this person can send the form again">Delete</button></td></tr>';
       }).join('') + '</tbody></table>';
-    Array.prototype.forEach.call(box.querySelectorAll('.avdel'), function (b) {
+    Array.prototype.forEach.call(box.querySelectorAll('[data-imp]'), function (b) {
+      b.onclick = function () { var r = data.rows.filter(function (x) { return x.id === b.getAttribute('data-imp'); })[0]; if (r) importRows([r]); };
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('.avdel[data-id]'), function (b) {
       b.onclick = function () {
         var r = data.rows.filter(function (x) { return x.id === b.getAttribute('data-id'); })[0];
         if (!r || !confirm('Delete the availability of ' + r.name + '? They will be able to send the form again.')) return;
@@ -2806,6 +2849,52 @@ window.addEventListener('focus', pollCloud);
       };
     });
   }
+  /* Import into the Weekly Roster: each answer becomes the employee's availability restrictions (every week).
+     Anytime = no restriction · Not available = "Not available" (all day) · From 14:00 = window 14:00 → 06:00 next morning.
+     The employee is found by employee number, then by name; if missing, they can be added. */
+  var AV_END = '06:00';
+  function findEmp(r) {
+    var no = String(r.empNo || '').replace(/\s+/g, '').toUpperCase(), nm = String(r.name || '').trim().toLowerCase();
+    var byNo = currentEmployees().filter(function (n) { var m = employeeMeta[n]; return no && m && String(m.empNo || '').replace(/\s+/g, '').toUpperCase() === no; })[0];
+    if (byNo) return byNo;
+    return currentEmployees().filter(function (n) { return n.trim().toLowerCase() === nm; })[0] || null;
+  }
+  function restrictionsOf(r) {
+    var out = [];
+    AV_ORDER.forEach(function (d) {
+      var v = (r.days || {})[d] || '', di = DAYS.indexOf(d), m = /from (\d{1,2}:\d{2})/i.exec(v);
+      if (di < 0 || !v || v === 'Available anytime') return;
+      if (v === 'Not available') out.push({ day: di, off: true, start: '', end: '' });
+      else if (m) out.push({ day: di, start: m[1].length === 4 ? '0' + m[1] : m[1], end: AV_END });
+    });
+    // the dates the person gave in the form: the restrictions only count between them
+    out.forEach(function (a) { if (r.from) a.from = r.from; if (r.to) a.to = r.to; a.src = 'form'; });
+    return out;
+  }
+  function importRows(rows) {
+    var done = [], added = [], skipped = [];
+    rows.forEach(function (r) {
+      var name = findEmp(r);
+      if (!name) {
+        if (!confirm(r.name + ' (' + r.empNo + ') is not in the employee list.\n\nAdd as a new employee?')) { skipped.push(r.name); return; }
+        name = String(r.name).trim(); employees.push(name); getGlobalEmpMeta(name).empNo = String(r.empNo || '').trim(); added.push(name);
+      }
+      // replaces what came from an earlier form; restrictions typed by hand (without the form) are kept
+      var gm = getGlobalEmpMeta(name);
+      gm.availability = (gm.availability || []).filter(function (a) { return a.src !== 'form'; }).concat(restrictionsOf(r));
+      done.push(name);
+    });
+    if (!done.length) { msg(skipped.length ? 'Nothing imported.' : ''); return; }
+    logActivity('edit', 'Availability imported from the form: ' + done.join(', '), '');
+    saveData(); render();
+    msg('');
+    alert('Imported ' + done.length + ' (' + done.join(', ') + ').' + (added.length ? '\nNew employees: ' + added.join(', ') : '') + (skipped.length ? '\nSkipped: ' + skipped.join(', ') : '') + '\n\nTheir restrictions now follow the form answers, only between the dates each person gave.');
+  }
+  document.getElementById('avImportAll').onclick = function () {
+    if (!data || !data.rows.length) { msg('No answers to import. Press Refresh first.'); return; }
+    if (!confirm('Import all ' + data.rows.length + ' answers?\n\nEach person gets restrictions from their answers, valid only between the dates they gave.')) return;
+    importRows(data.rows);
+  };
   function load() {
     if (!opPin()) {
       var p = prompt('Onboard supervisor PIN (asked once on this computer):');
