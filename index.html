@@ -940,6 +940,45 @@ function tabWeekStartISO(tab) {
   if (!best) return null;
   const d = best.d; return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+// ── Automatic day headers ("Fri 27"…) ─────────────────────────────────
+// Weeks run Friday → Thursday; a period is 2 weeks. A new week continues
+// 7 days after the week before it (in the same period, or the end of the
+// previous period). With nothing to continue from, the 14-day cycle of the
+// Period Calendar (starting Fri 16 Oct 2026) gives the current period.
+const CYCLE_ANCHOR = '2026-10-16';
+function isoAdd(iso, days) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + days); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function setWeekLabels(tab, startISO) {
+  tab.dayLabels = DAYS.map((d, i) => d + ' ' + new Date(isoAdd(startISO, i) + 'T12:00:00').getDate());
+}
+function hasDateLabels(tab) { return !!(tab.dayLabels && /\d/.test(tab.dayLabels[0] || '')); }
+function currentCycleStart() {
+  const a = new Date(CYCLE_ANCHOR + 'T12:00:00'), t = new Date(); t.setHours(12, 0, 0, 0);
+  const n = Math.floor((t - a) / (14 * 86400000));
+  return isoAdd(CYCLE_ANCHOR, n * 14);
+}
+// Week start of the last week that has dates, looking at every period in order
+function lastKnownWeekStart(upToPeriod, upToTab) {
+  let last = null;
+  for (let pi = 0; pi < periods.length; pi++) {
+    const tabs = periods[pi].tabs || [];
+    for (let ti = 0; ti < tabs.length; ti++) {
+      if (pi === upToPeriod && ti >= upToTab) return last;
+      if (pi > upToPeriod && upToPeriod >= 0) return last;
+      if (hasDateLabels(tabs[ti])) last = tabWeekStartISO(tabs[ti]) || last;
+    }
+  }
+  return last;
+}
+// Fills the day headers of every week that has no dates yet (never touches weeks already dated)
+function fillMissingWeekDates() {
+  let last = null, changed = false;
+  periods.forEach(p => (p.tabs || []).forEach(t => {
+    if (hasDateLabels(t)) { last = tabWeekStartISO(t) || last; return; }
+    const start = last ? isoAdd(last, 7) : currentCycleStart();
+    setWeekLabels(t, start); last = start; changed = true;
+  }));
+  return changed;
+}
 function dayISO(tab, di) {
   const ws = tabWeekStartISO(tab); if (!ws) return null;
   const d = new Date(ws + 'T12:00:00'); d.setDate(d.getDate() + di);
@@ -1350,6 +1389,7 @@ async function loadData() {
     try { const saved = lsGet(STORAGE_KEY); if (saved) parsed = JSON.parse(saved); } catch (e) { console.error('Local load error:', e); }
   }
   applyParsedState(parsed);
+  if (fillMissingWeekDates()) saveData(true);
   restoreLastView();
   document.getElementById('userLabel').textContent = currentUser ? '👤 ' + currentUser : '';
   if (cloudOn) {
@@ -1445,6 +1485,7 @@ function addTab() {
   const label = (n % 2 === 0) ? `Week ${n/2} — 2` : `Week ${Math.ceil(n/2)} — 1`;
   const tab = makeBlankTab(label);
   tab.data.forEach(shift => ensureShiftTimes(shift));
+  { const prev = lastKnownWeekStart(activePeriod, tabs.length); setWeekLabels(tab, prev ? isoAdd(prev, 7) : currentCycleStart()); }
   tabs.push(tab);
   activeTab = tabs.length - 1;
   // Shifts are shared globally across every tab in every period, so a brand
@@ -2529,6 +2570,11 @@ document.getElementById('periodCreateBtn').addEventListener('click', () => {
     if (existing) mirrorShiftDefsOntoTab(existing, newPeriod.tabs[0]);
     periods.push(newPeriod);
     logActivity('period', `Period created: "${name}"`, '');
+  }
+  { // dates continue from the last week of the roster
+    const np = periods[periods.length - 1];
+    let prev = lastKnownWeekStart(periods.length - 1, 0);
+    np.tabs.forEach(t => { const st = prev ? isoAdd(prev, 7) : currentCycleStart(); setWeekLabels(t, st); prev = st; });
   }
   activePeriod = periods.length-1; activeTab = 0;
   document.getElementById('periodModal').classList.remove('open');
