@@ -197,6 +197,8 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
 .mgr-status-row { display: flex; gap: 6px; align-items: center; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 6px; padding: 8px; }
 .mgr-status-paid { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #495057; white-space: nowrap; flex-shrink: 0; }
 .mgr-status-paid input { margin: 0; }
+.mgr-shift-days { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 11px; color: #495057; padding: 2px 0 6px; }
+.mgr-shift-days label { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
 .mgr-shift-times { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #495057; padding: 4px 0; }
 .mgr-shift-times input[type="time"] { border: 1px solid #ced4da; border-radius: 4px; padding: 3px 4px; font-size: 11px; }
 .mgr-shift-hours { color: #6c757d; font-size: 10px; }
@@ -765,7 +767,8 @@ function deepCopyPeriod(period, newName) {
         slotNames: shift.slotNames.slice(),
         slots: shift.slots.map(row => row.slice()),
         startTime: shift.startTime || '',
-        finishTime: shift.finishTime || ''
+        finishTime: shift.finishTime || '',
+        runDays: Array.isArray(shift.runDays) ? shift.runDays.slice() : undefined
       }))
     }))
   };
@@ -783,7 +786,8 @@ function deepCopyTab(tab, newName) {
       slotNames: shift.slotNames.slice(),
       slots: shift.slots.map(row => row.slice()),
       startTime: shift.startTime || '',
-      finishTime: shift.finishTime || ''
+      finishTime: shift.finishTime || '',
+      runDays: Array.isArray(shift.runDays) ? shift.runDays.slice() : undefined
     }))
   };
 }
@@ -806,6 +810,11 @@ function ensureShiftTimes(shift) {
   if (shift.startTime === undefined) shift.startTime = '';
   if (shift.finishTime === undefined) shift.finishTime = '';
 }
+// Days a shift runs on (indexes into DAYS). Missing = every day.
+function shiftRunsOn(shift, di) {
+  return !Array.isArray(shift.runDays) || shift.runDays.indexOf(di) >= 0;
+}
+function shiftHasPeopleOn(shift, di) { return shift.slots.some(row => row[di]); }
 function ensureStatusHoursMode(st) { if (!st.hoursMode) st.hoursMode = 'none'; }
 
 // ── Hours calculation (shift durations, weekly & two-week totals, rest gaps) ──
@@ -870,13 +879,15 @@ function mirrorShiftDefsOntoTab(sourceTab, target) {
   sourceTab.data.forEach((shift, si) => {
     if (!target.data[si]) {
       target.data[si] = { title: shift.title, color: shift.color, slotNames: shift.slotNames.slice(),
-        slots: shift.slotNames.map(() => new Array(DAYS.length).fill('')), startTime: shift.startTime, finishTime: shift.finishTime };
+        slots: shift.slotNames.map(() => new Array(DAYS.length).fill('')), startTime: shift.startTime, finishTime: shift.finishTime,
+        runDays: Array.isArray(shift.runDays) ? shift.runDays.slice() : undefined };
     } else {
       target.data[si].title = shift.title;
       target.data[si].color = shift.color;
       target.data[si].slotNames = shift.slotNames.slice();
       target.data[si].startTime = shift.startTime;
       target.data[si].finishTime = shift.finishTime;
+      target.data[si].runDays = Array.isArray(shift.runDays) ? shift.runDays.slice() : undefined;
       // Keep target's slot row count in step with source's slot count,
       // preserving existing assignment data for rows that still exist.
       while (target.data[si].slots.length < shift.slotNames.length) target.data[si].slots.push(new Array(DAYS.length).fill(''));
@@ -1663,6 +1674,7 @@ function renderPickerList(filterText) {
     const titleMatch = shift.title.toLowerCase().includes(q);
     const slotMatches = shift.slotNames.map(sn => sn.toLowerCase().includes(q));
     if (q && !titleMatch && !slotMatches.some(Boolean)) return;
+    if (!shiftRunsOn(shift, dayIdx) && !shiftHasPeopleOn(shift, dayIdx)) return;
     let rows = '';
     let freeCount = 0, totalCount = shift.slots.length;
     shift.slots.forEach((row, sli) => {
@@ -1891,6 +1903,7 @@ function renderShiftsView() {
   const shiftCardsHtml = tab.data.map(shift => {
     let filled = 0, total = 0;
     const days = DAYS.map((_, di) => {
+      if (!shiftRunsOn(shift, di) && !shiftHasPeopleOn(shift, di)) return '';
       const day = dayLabels[di];
       const slotsHtml = shift.slots.map((row, sli) => {
         total++;
@@ -2027,6 +2040,10 @@ function renderShiftMgr() {
         <input type="time" class="mgr-shift-finish" value="${esc(shift.finishTime||'')}" data-si="${si}" />
         <span class="mgr-shift-hours" data-si="${si}">${shift.startTime && shift.finishTime ? '('+fmtHours(shiftDurationHours(shift))+')' : ''}</span>
       </div>
+      <div class="mgr-shift-days" title="Days this shift runs. Untick the days it does not run, so it is not shown empty on those days.">
+        <span>Runs on</span>
+        ${DAYS.map((d, di) => `<label><input type="checkbox" class="mgr-run-day" data-si="${si}" data-di="${di}" ${shiftRunsOn(shift, di) ? 'checked' : ''}>${esc(String(d).slice(0,3))}</label>`).join('')}
+      </div>
       ${shift.slotNames.map((sn, sli) => `
         <div class="mgr-slot-row" data-si="${si}" data-sli="${sli}">
           <input class="modal-input mgr-slot-name" value="${esc(sn)}" data-si="${si}" data-sli="${sli}" />
@@ -2068,6 +2085,18 @@ function renderShiftMgr() {
       tab.data[si].finishTime = e.target.value;
       logActivity('shift-act', `Shift "${tab.data[si].title}" finish time set to ${e.target.value || '(none)'}`, `${currentPeriod().name} · ${tab.name}`);
       saveData(); renderShiftMgr(); render();
+    });
+  });
+  list.querySelectorAll('.mgr-run-day').forEach(cb => {
+    cb.addEventListener('change', e => {
+      const si = +e.target.dataset.si;
+      const shift = tab.data[si];
+      const boxes = list.querySelectorAll(`.mgr-run-day[data-si="${si}"]`);
+      const on = []; boxes.forEach(b => { if (b.checked) on.push(+b.dataset.di); });
+      if (!on.length) { alert('A shift must run on at least one day. Delete the shift instead.'); e.target.checked = true; return; }
+      shift.runDays = on.length === DAYS.length ? undefined : on;
+      logActivity('shift-act', `Shift "${shift.title}" runs on: ${on.length === DAYS.length ? 'every day' : on.map(i => DAYS[i]).join(', ')}`, `${currentPeriod().name} · ${tab.name}`);
+      saveData(); render();
     });
   });
   list.querySelectorAll('.mgr-slot-name').forEach(inp => {
