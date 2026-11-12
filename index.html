@@ -459,6 +459,7 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
     </div>
     <input type="file" id="csvFileInput" accept=".csv" style="display:none;" />
     <button id="importCsvBtn" class="btn btn-dark" style="width:100%;">📄 Import CSV</button>
+    <button id="migrateNoBtn" class="btn btn-dark" style="width:100%;" title="Names like &quot;John Smith (554419)&quot; become &quot;John Smith&quot; with Employee ID 554419">🔢 Move (numbers) from names to Employee ID</button>
     <button id="copyNamesBtn" class="btn btn-green" style="width:100%;">📋 Copy names list (for Profiles)</button>
     <button id="modalCloseBtn" class="btn btn-dark" style="width:100%;">Close</button>
   </div>
@@ -1071,6 +1072,67 @@ function ensureEmployeeMetaGlobal() {
 function ensureTabOverrides(tab) {
   if (!tab.metaOverride) tab.metaOverride = {};
   if (!tab.availability) tab.availability = {};
+}
+
+// Rename an employee everywhere (all periods/tabs, statuses, overrides, meta, bad matches).
+function renameEmployeeEverywhere(oldN, newN) {
+  const emps = currentEmployees();
+  const idx = emps.indexOf(oldN);
+  if (idx !== -1) emps[idx] = newN;
+  periods.forEach(p => p.tabs.forEach(t => {
+    t.data.forEach(shift => shift.slots.forEach(row => {
+      for (let j = 0; j < row.length; j++) if (row[j] === oldN) row[j] = newN;
+    }));
+    ensureStatusAssignments(t);
+    const prefix = oldN + '||';
+    Object.keys(t.statusAssignments).forEach(k => {
+      if (k.startsWith(prefix)) {
+        t.statusAssignments[newN + '||' + k.slice(prefix.length)] = t.statusAssignments[k];
+        delete t.statusAssignments[k];
+      }
+    });
+    ensureTabOverrides(t);
+    if (t.metaOverride[oldN]) { t.metaOverride[newN] = t.metaOverride[oldN]; delete t.metaOverride[oldN]; }
+    if (Object.prototype.hasOwnProperty.call(t.availability, oldN)) { t.availability[newN] = t.availability[oldN]; delete t.availability[oldN]; }
+  }));
+  employeeMeta[newN] = employeeMeta[oldN] || { empNo: '000000', category: '', group: '', availability: [] };
+  delete employeeMeta[oldN];
+  Object.keys(employeeMeta).forEach(k => { const b = employeeMeta[k] && employeeMeta[k].badMatch; if (Array.isArray(b)) employeeMeta[k].badMatch = b.map(x => x === oldN ? newN : x); });
+}
+// "John Smith (12345)" -> name "John Smith", Employee ID 012345
+const NAME_NO_RE = /\s*\(\s*(\d{6})\s*\)\s*|\s+(\d{6})\s*$/;   // always 6 digits: in brackets, or loose at the end
+function migrateNumbersFromNames() {
+  const emps = currentEmployees().slice();
+  const todo = [], skipped = [];
+  emps.forEach(n => {
+    const m = NAME_NO_RE.exec(n);
+    if (!m) return;
+    const clean = n.replace(NAME_NO_RE, ' ').replace(/\s+/g, ' ').trim();
+    const no = m[1] || m[2];
+    if (!clean) { skipped.push(n + ' (no name left)'); return; }
+    if (clean !== n && emps.includes(clean)) { skipped.push(n + ' — "' + clean + '" already exists'); return; }
+    const cur = (employeeMeta[n] && employeeMeta[n].empNo) || '000000';
+    todo.push({ n, clean, no, cur });
+  });
+  if (!todo.length) { alert('No names with a number in brackets were found.' + (skipped.length ? '\n\nSkipped:\n' + skipped.join('\n') : '')); return; }
+  const conflicts = todo.filter(t => t.cur !== '000000' && t.cur !== t.no);
+  let msg = todo.length + ' employee(s) will have the number moved from the name to the Employee ID.\n\nExample: "' + todo[0].n + '" → "' + todo[0].clean + '", ID ' + todo[0].no + '.';
+  if (conflicts.length) msg += '\n\n' + conflicts.length + ' already had a different ID; the number in brackets will replace it:\n' + conflicts.slice(0, 8).map(t => t.clean + ': ' + t.cur + ' → ' + t.no).join('\n') + (conflicts.length > 8 ? '\n…' : '');
+  if (skipped.length) msg += '\n\nSkipped (fix by hand):\n' + skipped.join('\n');
+  msg += '\n\nContinue?';
+  if (!confirm(msg)) return;
+  todo.forEach(t => {
+    if (t.clean !== t.n) {
+      // leftover statuses under the clean name (from before the number was added) were hidden; drop them so they don't reappear
+      periods.forEach(p => p.tabs.forEach(tb => { ensureStatusAssignments(tb); Object.keys(tb.statusAssignments).forEach(k => { if (k.startsWith(t.clean + '||')) delete tb.statusAssignments[k]; }); }));
+      renameEmployeeEverywhere(t.n, t.clean);
+    }
+    getGlobalEmpMeta(t.clean).empNo = t.no;
+  });
+  logActivity('rename', `Numbers moved from names to Employee ID: ${todo.length} employee(s)`, '');
+  saveData(); render();
+  if (typeof renderEmpModal === 'function') renderEmpModal();
+  alert('Done: ' + todo.length + ' employee(s) updated.' + (skipped.length ? '\n\nSkipped:\n' + skipped.join('\n') : ''));
 }
 function getGlobalEmpMeta(name) {
   ensureEmployeeMetaGlobal();
@@ -2453,6 +2515,7 @@ function openEmpEditModal(name) {
   renderEmpEditBad();
   document.getElementById('empEditModal').classList.add('open');
 }
+document.getElementById('migrateNoBtn').addEventListener('click', migrateNumbersFromNames);
 document.getElementById('empEditCancelBtn').addEventListener('click', () => document.getElementById('empEditModal').classList.remove('open'));
 document.getElementById('empEditModal').addEventListener('click', e => { if (e.target===document.getElementById('empEditModal')) document.getElementById('empEditModal').classList.remove('open'); });
 document.getElementById('empEditSaveBtn').addEventListener('click', () => {
@@ -2469,28 +2532,7 @@ document.getElementById('empEditSaveBtn').addEventListener('click', () => {
     if (emps.includes(newName)) { alert('An employee with that name already exists.'); return; }
     const idx = emps.indexOf(empEditTarget);
     if (idx !== -1) emps[idx] = newName;
-    // Employees are shared across the whole app — migrate shift assignments,
-    // status keys, and per-tab overrides/availability in EVERY period, not
-    // just the one currently open.
-    periods.forEach(p => p.tabs.forEach(t => {
-      t.data.forEach(shift => shift.slots.forEach(row => {
-        for (let j = 0; j < row.length; j++) if (row[j] === empEditTarget) row[j] = newName;
-      }));
-      ensureStatusAssignments(t);
-      const prefix = empEditTarget + '||';
-      Object.keys(t.statusAssignments).forEach(k => {
-        if (k.startsWith(prefix)) {
-          t.statusAssignments[newName + '||' + k.slice(prefix.length)] = t.statusAssignments[k];
-          delete t.statusAssignments[k];
-        }
-      });
-      ensureTabOverrides(t);
-      if (t.metaOverride[empEditTarget]) { t.metaOverride[newName] = t.metaOverride[empEditTarget]; delete t.metaOverride[empEditTarget]; }
-      if (Object.prototype.hasOwnProperty.call(t.availability, empEditTarget)) { t.availability[newName] = t.availability[empEditTarget]; delete t.availability[empEditTarget]; }
-    }));
-    employeeMeta[newName] = employeeMeta[empEditTarget] || { empNo: '000000', category: '', group: '', availability: [] };
-    delete employeeMeta[empEditTarget];
-    Object.keys(employeeMeta).forEach(k => { const b = employeeMeta[k] && employeeMeta[k].badMatch; if (Array.isArray(b)) employeeMeta[k].badMatch = b.map(x => x === empEditTarget ? newName : x); });
+    renameEmployeeEverywhere(empEditTarget, newName);
     empEditBad = empEditBad.map(x => x === empEditTarget ? newName : x);
     logActivity('rename', `Employee renamed: "${empEditTarget}" → "${newName}"`, '');
     empEditTarget = newName;
