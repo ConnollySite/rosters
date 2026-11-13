@@ -1212,6 +1212,10 @@ function sortedEmployees() {
     return a.localeCompare(b);
   });
 }
+// Staff number shown next to a name everywhere: "Name (554419)"
+function empNoOf(name) { const m = getEmpMeta(name); return m && m.empNo && m.empNo !== '000000' ? m.empNo : ''; }
+function nameNoText(name) { const no = name ? empNoOf(name) : ''; return no ? name + ' (' + no + ')' : (name || ''); }
+function nameNoHtml(name) { const no = name ? empNoOf(name) : ''; return esc(name) + (no ? ` <span class="emp-no">(${esc(no)})</span>` : ''); }
 // Renders the name-cell contents: category colour dot + name + (employee #)
 function empNameCellHtml(name) {
   const m = getEmpMeta(name);
@@ -1789,7 +1793,7 @@ function renderPickerList(filterText) {
       const mTip = occBad ? `Mismatch: ${occ} must not work with ${empName}` : '';
       rows += `<div class="picker-row ${takenByOther?'taken':''} ${isThisOne?'current':''}" data-si="${si}" data-sli="${sli}">
         <span>${swatch}${esc(shift.slotNames[sli])}</span>
-        ${takenByOther ? `<span class="picker-occ">⇄ ${esc(occ)}${occBad ? `<span class="picker-m" title="${esc(mTip)}" data-tip="${esc(mTip)}">M</span>` : ''}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
+        ${takenByOther ? `<span class="picker-occ">⇄ ${nameNoHtml(occ)}${occBad ? `<span class="picker-m" title="${esc(mTip)}" data-tip="${esc(mTip)}">M</span>` : ''}</span>` : (isThisOne ? `<span class="picker-occ">current</span>` : '')}
       </div>`;
     });
     if (!rows) return;
@@ -1868,7 +1872,7 @@ function showShiftTooltip(shiftIdx, currentDayIdx, anchorEl) {
       const occ = row[di];
       if (occ) filled++;
       return occ
-        ? `<div class="tip-slot">${esc(shift.slotNames[sli])}: <strong>${esc(occ)}</strong></div>`
+        ? `<div class="tip-slot">${esc(shift.slotNames[sli])}: <strong>${nameNoHtml(occ)}</strong></div>`
         : `<div class="tip-slot empty">${esc(shift.slotNames[sli])}: — empty —</div>`;
     }).join('');
     html += `<div class="tip-day-row"><span class="tip-day-label${di===currentDayIdx?' is-today':''}">${day}${di===currentDayIdx?' (this day)':''}</span>${rowLabels}</div>`;
@@ -2009,7 +2013,7 @@ function renderShiftsView() {
         const occ = row[di];
         if (occ) filled++;
         return occ
-          ? `<div class="shift-card-slot">${esc(shift.slotNames[sli])}: <strong>${esc(occ)}</strong></div>`
+          ? `<div class="shift-card-slot">${esc(shift.slotNames[sli])}: <strong>${nameNoHtml(occ)}</strong></div>`
           : `<div class="shift-card-slot empty">${esc(shift.slotNames[sli])}: — empty —</div>`;
       }).join('');
       return `<div class="shift-card-day">${day}</div>${slotsHtml}`;
@@ -2029,7 +2033,7 @@ function renderShiftsView() {
       const names = emps.filter(emp => getStatus(tab, emp, di) === st.id).sort();
       if (names.length) daysUsed++;
       const namesHtml = names.length
-        ? names.map(n => `<div class="shift-card-slot"><strong>${esc(n)}</strong></div>`).join('')
+        ? names.map(n => `<div class="shift-card-slot"><strong>${nameNoHtml(n)}</strong></div>`).join('')
         : `<div class="shift-card-slot empty">— none —</div>`;
       return `<div class="shift-card-day">${day}</div>${namesHtml}`;
     }).join('');
@@ -2089,7 +2093,7 @@ function renderEmployeesView() {
   view.querySelectorAll('.emp-card-copy').forEach(btn => {
     btn.addEventListener('click', () => {
       const emp = btn.dataset.emp;
-      const lines = [emp + ' — ' + currentPeriod().name + ' (' + tab.name + ')'];
+      const lines = [nameNoText(emp) + ' — ' + currentPeriod().name + ' (' + tab.name + ')'];
       DAYS.forEach((_, di) => {
         const day = dayLabels[di];
         const statusId = getStatus(tab, emp, di);
@@ -2491,11 +2495,11 @@ function mismatchesInShift(shift, dayIdx, empName, skipSli) {
 function renderEmpEditBad() {
   const box = document.getElementById('empEditBadList');
   box.innerHTML = empEditBad.length
-    ? empEditBad.map((n, i) => `<span style="display:inline-flex;align-items:center;gap:4px;background:#f8d7da;color:#842029;border:1px solid #f1aeb5;border-radius:12px;padding:2px 4px 2px 10px;font-size:12px;font-weight:bold;">${esc(n)}<button class="bad-del" data-i="${i}" title="Remove" style="border:0;background:none;color:#842029;cursor:pointer;font-size:13px;">✕</button></span>`).join('')
+    ? empEditBad.map((n, i) => `<span style="display:inline-flex;align-items:center;gap:4px;background:#f8d7da;color:#842029;border:1px solid #f1aeb5;border-radius:12px;padding:2px 4px 2px 10px;font-size:12px;font-weight:bold;">${esc(nameNoText(n))}<button class="bad-del" data-i="${i}" title="Remove" style="border:0;background:none;color:#842029;cursor:pointer;font-size:13px;">✕</button></span>`).join('')
     : '<span style="font-size:12px;color:#6c757d;">None</span>';
   box.querySelectorAll('.bad-del').forEach(b => b.addEventListener('click', () => { empEditBad.splice(+b.dataset.i, 1); renderEmpEditBad(); }));
   const sel = document.getElementById('empEditBadSel');
-  sel.innerHTML = '<option value="">Choose a person…</option>' + currentEmployees().filter(n => n !== empEditTarget && !empEditBad.includes(n)).slice().sort().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  sel.innerHTML = '<option value="">Choose a person…</option>' + currentEmployees().filter(n => n !== empEditTarget && !empEditBad.includes(n)).slice().sort().map(n => `<option value="${esc(n)}">${esc(nameNoText(n))}</option>`).join('');
 }
 document.getElementById('empEditBadAddBtn').addEventListener('click', () => {
   const v = document.getElementById('empEditBadSel').value;
