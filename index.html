@@ -386,6 +386,7 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
     <button class="btn btn-orange" id="historyBtn">📜 History</button>
     <button class="btn btn-dark"   id="lockBtn">🔒 Lock</button>
     <button class="btn btn-purple" id="availBtn">🎓 Student availability</button>
+    <button class="btn btn-purple" id="holSyncBtn" title="Bring the holidays from the Holiday Manager into the roster">🌴 Holidays</button>
   </div>
 </header>
 <div id="availPanel">
@@ -1505,6 +1506,7 @@ async function loadData() {
   applyParsedState(parsed);
   if (fillMissingWeekDates()) saveData(true);
   restoreLastView();
+  setTimeout(() => { if (holOpPin()) syncHolidays(false); }, 1500);
   document.getElementById('userLabel').textContent = currentUser ? '👤 ' + currentUser : '';
   if (cloudOn) {
     if (cloudOk) {
@@ -1936,7 +1938,7 @@ function renderRoster() {
           const isExceptionExtra = matches.length > 1;
           const style = shift.color ? ` style="background:${esc(shift.color)};color:#fff;border-color:${esc(shift.color)}"` : '';
           return `<div class="chip${isExceptionExtra?' exception-chip':''}"${style} data-si="${m.si}" data-sli="${m.sli}" data-emp="${esc(emp)}" data-di="${di}">
-            <span class="chip-label">${esc(shift.title)} · ${esc(shift.slotNames[m.sli])}${availViolation ? ` <span class="avail-badge" title="${esc(describeAvailabilityViolation(tab, emp, di, matches))}">⚠️</span>` : ''}</span>
+            <span class="chip-label">${holidayOn(emp, dayISO(tab, di)) ? `<span title="On holiday in the Holiday Manager">🌴</span> ` : ''}${esc(shift.title)} · ${esc(shift.slotNames[m.sli])}${availViolation ? ` <span class="avail-badge" title="${esc(describeAvailabilityViolation(tab, emp, di, matches))}">⚠️</span>` : ''}</span>
             <span class="chip-x" data-act="remove">✕</span>
           </div>`;
         }).join('');
@@ -2922,6 +2924,116 @@ async function pickRestore(id) {
   };
 }
 document.getElementById('versionsBtn').addEventListener('click', openVersions);
+
+
+// ── HOLIDAYS from the Holiday Manager ─────────────────────────────────
+// Holidays typed in the Holiday Manager (holidays.html) come into the roster as "Hol".
+// Found by staff number (or the name). Only today and later weeks are changed.
+// If the person already has duties on those days, it asks before removing them.
+const HOL_URL = 'https://script.google.com/macros/s/AKfycbzyF9G_x34LnFZwufDixy3yff7WdMxnVlfeohSYnmlN8Dg025mdryAWMy1K-z0UA6dPTw/exec';
+let HOL_BY_EMP = {};          // roster name -> [{id,start,end,note}]
+let holBusy = false, holLastAt = 0;
+function holOpPin() { try { return localStorage.getItem('roster_op_pin') || ''; } catch (e) { return ''; } }
+function holNorm(n) { return String(n || '').replace(/\(\s*\d+\s*\)/g, ' ').replace(/\b\d{5,6}\b/g, ' ').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim(); }
+function holSix(v) { const d = String(v || '').replace(/\D/g, ''); return d ? d.padStart(6, '0').slice(-6) : ''; }
+function holTodayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function holidayOn(emp, iso) { return iso ? (HOL_BY_EMP[emp] || []).find(h => h.start <= iso && h.end >= iso) || null : null; }
+function holShort(iso) { const p = String(iso).split('-'); return p[2] + '/' + p[1]; }
+function holMapFrom(data) {
+  const map = {}, unmatched = new Set();
+  const byNo = {}, byName = {};
+  currentEmployees().forEach(n => { const no = empNoOf(n); if (no) byNo[no] = n; byName[holNorm(n)] = n; });
+  const hEmp = {}; (data.employees || []).forEach(e => { hEmp[e.name] = e; });
+  (data.holidays || []).forEach(h => {
+    if (!h || !h.start || !h.end) return;
+    const he = hEmp[h.name] || {};
+    let no = holSix(he.empNo); if (!no) { const m = /\((\d{1,6})\)/.exec(h.name || ''); if (m) no = holSix(m[1]); }
+    const emp = (no && byNo[no]) || byName[holNorm(h.name)];
+    if (!emp) { unmatched.add(h.name); return; }
+    (map[emp] = map[emp] || []).push({ id: h.id || (h.name + h.start), start: toISODate(h.start), end: toISODate(h.end), note: h.note || '' });
+  });
+  return { map, unmatched: [...unmatched] };
+}
+async function syncHolidays(manual) {
+  if (holBusy) return;
+  if (!manual && (uiBusy() || localDirty())) return;
+  let pin = holOpPin();
+  if (!pin) {
+    if (!manual) return;
+    const p = prompt('Onboard supervisor PIN (asked once on this computer):');
+    if (!p) return;
+    pin = p.trim(); try { localStorage.setItem('roster_op_pin', pin); } catch (e) {}
+  }
+  holBusy = true;
+  let res;
+  try {
+    res = await fetch(HOL_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ kind: 'holiday', action: 'load', pin }) }).then(r => r.json());
+  } catch (e) { holBusy = false; if (manual) alert("Can't reach the Holiday Manager. Check the connection."); return; }
+  holBusy = false; holLastAt = Date.now();
+  if (!res || !res.ok) {
+    if (res && res.error === 'auth') { try { localStorage.removeItem('roster_op_pin'); } catch (e) {} if (manual) alert('Wrong supervisor PIN. Press 🌴 Holidays again and type it.'); }
+    else if (manual) alert((res && res.error) || 'Could not load the holidays.');
+    return;
+  }
+  const { map, unmatched } = holMapFrom(res.data || {});
+  HOL_BY_EMP = map;
+  const today = holTodayISO();
+  let added = 0, removed = 0, removedDuties = 0;
+  const groups = {};   // emp||holidayId -> {emp, h, items:[{t,di,matches}]}
+  periods.forEach(per => per.tabs.forEach(t => {
+    ensureStatusAssignments(t);
+    t.holAuto = t.holAuto || {}; t.holSkip = t.holSkip || {};
+    // holidays that were deleted or changed in the Holiday Manager: take the automatic "Hol" away again
+    Object.keys(t.holAuto).forEach(key => {
+      const i = key.lastIndexOf('||'); const emp = key.slice(0, i), di = +key.slice(i + 2);
+      const iso = dayISO(t, di);
+      if (iso && iso < today) return;
+      if (!holidayOn(emp, iso)) { if (t.statusAssignments[key] === 'hol') { delete t.statusAssignments[key]; removed++; } delete t.holAuto[key]; }
+    });
+    Object.keys(t.holSkip).forEach(key => {
+      const i = key.lastIndexOf('||'); const emp = key.slice(0, i), di = +key.slice(i + 2);
+      const h = holidayOn(emp, dayISO(t, di)); if (!h || h.id !== t.holSkip[key]) delete t.holSkip[key];
+    });
+    Object.keys(map).forEach(emp => {
+      for (let di = 0; di < DAYS.length; di++) {
+        const iso = dayISO(t, di);
+        if (!iso || iso < today) continue;
+        const h = holidayOn(emp, iso); if (!h) continue;
+        const key = statusKey(emp, di);
+        if (t.statusAssignments[key]) continue;          // already Off / Sick / Hol: keep it
+        if (t.holSkip[key] === h.id) continue;          // you chose to keep the duty
+        const matches = findAssignmentsInTab(t, emp, di);
+        if (!matches.length) { t.statusAssignments[key] = 'hol'; t.holAuto[key] = h.id; added++; continue; }
+        const g = emp + '||' + h.id;
+        (groups[g] = groups[g] || { emp, h, items: [] }).items.push({ t, di, matches });
+      }
+    });
+  }));
+  // days that already have duties: ask first
+  Object.values(groups).forEach(g => {
+    const lines = g.items.map(it => '• ' + (it.t.dayLabels && it.t.dayLabels[it.di] || DAYS[it.di]) + ' — ' + it.matches.map(m => it.t.data[m.si].title + ' · ' + it.t.data[m.si].slotNames[m.sli]).join(', '));
+    const ok = confirm('🌴 ' + nameNoText(g.emp) + ' is on holiday ' + holShort(g.h.start) + ' – ' + holShort(g.h.end) + ' (Holiday Manager).\n\n' +
+      'All the duties in that period will be removed and replaced by "Hol":\n' + lines.join('\n') +
+      '\n\nOK = remove the duties and put Hol\nCancel = keep the duties (you will not be asked again for these days)');
+    g.items.forEach(it => {
+      const key = statusKey(g.emp, it.di);
+      if (ok) {
+        it.matches.forEach(m => { it.t.data[m.si].slots[m.sli][it.di] = ''; removedDuties++; });
+        it.t.statusAssignments[key] = 'hol'; it.t.holAuto[key] = g.h.id; added++;
+      } else it.t.holSkip[key] = g.h.id;
+    });
+  });
+  if (added || removed) {
+    logActivity('status', `Holidays from the Holiday Manager: ${added} day(s) set to Hol${removedDuties ? `, ${removedDuties} duty(ies) removed` : ''}${removed ? `, ${removed} Hol day(s) taken away` : ''}`, '');
+    saveData();
+  }
+  render();
+  if (manual) alert('🌴 Holidays updated.\n\n' + added + ' day(s) set to Hol' + (removedDuties ? ' (' + removedDuties + ' duty(ies) removed)' : '') + '.\n' + removed + ' Hol day(s) taken away (holiday deleted or changed).' +
+    (unmatched.length ? '\n\nNot found in the roster (check the name or staff number in the Holiday Manager):\n' + unmatched.join('\n') : ''));
+}
+document.getElementById('holSyncBtn').addEventListener('click', () => syncHolidays(true));
+// check again when you come back to the page (at most every 10 minutes)
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - holLastAt > 600000 && holOpPin()) syncHolidays(false); });
 
 // ── LIVE UPDATES (two tabs / two people) ─────────────────────────────
 // Every few seconds the page asks the cloud which version is newest. If
