@@ -951,7 +951,7 @@ function buildRosterPDF(onlySectionId){
   function combineBreaks(p){
     return p.breaks
       .filter(function(b){ return b.label || b.value; })
-      .map(function(b){ return (b.label||'').replace(/^Break( in Connolly)?/i,'').trim() + ': ' + (b.value || String.fromCharCode(8212)); })
+      .map(function(b){ var l = String(b.label||'').trim(); return (l ? l + ': ' : '') + (b.value || String.fromCharCode(8212)); })   // the label exactly as typed
       .join('   |   ');
   }
 
