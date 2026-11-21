@@ -126,6 +126,10 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
 .emp-card-day { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 4px 6px; margin-bottom: 3px; border-radius: 4px; background: #f8f9fa; border-left: 3px solid #0d6efd; }
 .emp-card-day .day-name { font-weight: bold; color: #495057; flex-shrink: 0; }
 .emp-card-day .day-val { color: #212529; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.emp-card-day.shift-list { flex-direction: column; gap: 1px; }   /* day on top, its shifts listed below, one per line */
+.emp-card-day.shift-list .day-val { text-align: left; white-space: normal; }
+.emp-card-day .day-val .one-shift { display: block; padding-left: 4px; }
+.emp-card-day .day-val .one-shift::before { content: '• '; color: #0d6efd; font-weight: bold; }
 .emp-card-day.off-day { border-left-color: #dee2e6; }
 .emp-card-day.off-day .day-val { color: #adb5bd; font-style: italic; }
 .emp-card-day.rest-violation { box-shadow: inset 0 -3px 0 0 #dc3545; }
@@ -2063,7 +2067,7 @@ function renderEmployeesView() {
     const rowsHtml = DAYS.map((_, di) => {
       const day = dayLabels[di];
       const statusId = getStatus(tab, emp, di);
-      let valText, isOff = false;
+      let valText, valLines = null, isOff = false;
       if (statusId) {
         const st = getStatusType(statusId);
         valText = st ? st.label : statusId;
@@ -2071,14 +2075,15 @@ function renderEmployeesView() {
       } else {
         const matches = findAssignmentsInTab(tab, emp, di);
         if (matches.length) {
-          valText = matches.map(m => `${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]}`).join(' + ');
+          valLines = matches.map(m => `${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]}`);
+          valText = valLines.join('\n');
         } else {
           valText = '—';
           isOff = true;
         }
       }
       const violation = hasRestViolation(tab, emp, di);
-      return `<div class="emp-card-day${isOff?' off-day':''}${violation?' rest-violation':''}" title="${violation?'Less than 11 hours rest before the next shift':''}"><span class="day-name">${esc(day)}</span><span class="day-val" title="${esc(valText)}">${esc(valText)}</span></div>`;
+      return `<div class="emp-card-day${isOff?' off-day':''}${valLines?' shift-list':''}${violation?' rest-violation':''}" title="${violation?'Less than 11 hours rest before the next shift':''}"><span class="day-name">${esc(day)}</span><span class="day-val" title="${esc(valText)}">${valLines ? valLines.map(v => `<span class="one-shift">${esc(v)}</span>`).join('') : esc(valText)}</span></div>`;
     }).join('');
     const weekHrs = computeWeeklyHours(tab, emp);
     const cumHrs = isWeek2 ? computeCumulativeHours(period, activeTab, emp) : weekHrs;
@@ -2105,18 +2110,23 @@ function renderEmployeesView() {
           valText = st ? st.label : statusId;
         } else {
           const matches = findAssignmentsInTab(tab, emp, di);
+          if (matches.length) {   // the day, then each shift on its own line
+            lines.push('', `${day.toUpperCase()}:`);
+            matches.forEach(m => lines.push(`• ${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]}`));
+            return;
+          }
           valText = matches.length
-            ? matches.map(m => `${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]}`).join(' + ')
+            ? `${tab.data[matches[0].si].title} · ${tab.data[matches[0].si].slotNames[matches[0].sli]}`
             : 'Off';
         }
-        lines.push(`${day}: ${valText}`);
+        lines.push('', `${day.toUpperCase()}: ${valText}`);
       });
       const weekHrs = computeWeeklyHours(tab, emp);
       if (isSecondWeek(currentPeriod(), activeTab)) {
         const cumHrs = computeCumulativeHours(currentPeriod(), activeTab, emp);
-        lines.push(`Hours: ${fmtHours(weekHrs)} this week (${fmtHours(cumHrs)} fortnight)`);
+        lines.push('', `Hours: ${fmtHours(weekHrs)} this week (${fmtHours(cumHrs)} fortnight)`);
       } else {
-        lines.push(`Hours: ${fmtHours(weekHrs)} this week`);
+        lines.push('', `Hours: ${fmtHours(weekHrs)} this week`);
       }
       navigator.clipboard.writeText(lines.join('\n')).then(() => {
         btn.textContent = '✓ Copied'; btn.classList.add('copied');
