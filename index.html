@@ -99,6 +99,8 @@ td.hours-cell { background: #f8f9fa; font-weight: bold; font-size: 12px; text-al
 td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
 
 .cell-wrap { display: flex; flex-direction: column; gap: 3px; min-height: 30px; }
+.chip.under-status { opacity: .55; }   /* a shift kept under a status sticker (Sick, Off…) */
+.prev-thu { color: #6c757d; font-size: 10px; font-weight: normal; display: block; }
 .chip { display: flex; align-items: center; justify-content: space-between; gap: 4px; background: #cfe2ff; color: #084298; border: 1px solid #b6d4fe; border-radius: 4px; padding: 4px 6px; font-size: 11px; font-weight: bold; cursor: pointer; line-height: 1.25; }
 .chip:hover { background: #b6d4fe; }
 .chip .chip-label { overflow: hidden; text-overflow: ellipsis; }
@@ -129,6 +131,8 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
 .emp-card-day.shift-list { flex-direction: column; gap: 1px; }   /* day on top, its shifts listed below, one per line */
 .emp-card-day.shift-list .day-val { text-align: left; white-space: normal; }
 .emp-card-day .day-val .one-shift { display: block; padding-left: 4px; }
+.emp-card-day .day-val .one-shift.struck { text-decoration: line-through; color: #868e96; }
+.emp-card-day .day-val .one-status { display: block; font-weight: bold; font-style: normal; color: #212529; }
 .emp-card-day .day-val .one-shift::before { content: '• '; color: #0d6efd; font-weight: bold; }
 .emp-card-day.off-day { border-left-color: #dee2e6; }
 .emp-card-day.off-day .day-val { color: #adb5bd; font-style: italic; }
@@ -916,6 +920,7 @@ function fmtHours(h) { return (Math.round(h * 100) / 100).toString().replace(/\.
 // finish may exceed 1440 for an overnight shift) an employee is rostered on a
 // given day — or null if they have no timed shift assignment that day.
 function getDayShiftSpan(tab, empName, di) {
+  if (getStatus(tab, empName, di)) return null;   // Sick / Off / Hol on top of a shift: not working that day
   const matches = findAssignmentsInTab(tab, empName, di);
   let start = null, end = null;
   matches.forEach(m => {
@@ -1687,8 +1692,7 @@ function getStatusType(id) { return statusTypes.find(s => s.id === id) || null; 
 function setStatus(empName, dayIdx, statusId) {
   const tab = currentTab();
   ensureStatusAssignments(tab);
-  // mutually exclusive with shift assignments that day
-  findAssignmentsInTab(tab, empName, dayIdx).forEach(m => { tab.data[m.si].slots[m.sli][dayIdx] = ''; });
+  // the shift stays: the status is a sticker on top of it (the hours follow the status)
   tab.statusAssignments[statusKey(empName, dayIdx)] = statusId;
   const st = getStatusType(statusId);
   logActivity('status', `${empName} marked "${st ? st.label : statusId}"`, `${currentPeriod().name} · ${tab.name} · ${currentDayLabels()[dayIdx]}`);
@@ -1902,6 +1906,29 @@ function showShiftTooltip(shiftIdx, currentDayIdx, anchorEl) {
 function hideShiftTooltip() { clearTimeout(tipTimer); shiftTooltip.classList.remove('visible'); }
 
 // ── ROSTER VIEW (names x days) ────────────────────────────────────────────────
+// What the person did on the Thursday before this week (the last day of the week before)
+function prevWeekTab() {
+  const per = currentPeriod(), tab = currentTab();
+  const start = tabWeekStartISO(tab);
+  if (start) {   // by date first
+    const want = isoAdd(start, -7);
+    for (const p of periods) for (const t of p.tabs) if (t !== tab && tabWeekStartISO(t) === want) return t;
+  }
+  if (activeTab > 0) return per.tabs[activeTab - 1];
+  const pi = periods.indexOf(per);
+  return pi > 0 && periods[pi - 1].tabs.length ? periods[pi - 1].tabs[periods[pi - 1].tabs.length - 1] : null;
+}
+function prevThursdayText(emp) {
+  const t = prevWeekTab();
+  if (!t) return 'Previous Thursday: no week before this one';
+  const di = DAYS.length - 1;   // Thursday is the last day (Fri → Thu)
+  ensureDayLabels(t);
+  const label = (t.dayLabels && t.dayLabels[di]) || 'Thu';
+  const parts = [];
+  const st = getStatus(t, emp, di); if (st) { const s2 = getStatusType(st); parts.push(s2 ? s2.label : st); }
+  findAssignmentsInTab(t, emp, di).forEach(m => { const sh = t.data[m.si]; parts.push(sh.title + ' · ' + sh.slotNames[m.sli]); });
+  return 'Previous Thursday ' + label + ': ' + (parts.length ? parts.join(' + ') : 'no shift');
+}
 function renderRoster() {
   const tab = currentTab();
   const container = document.getElementById('rosterView');
@@ -1922,34 +1949,36 @@ function renderRoster() {
   html += `</tr></thead><tbody>`;
 
   emps.forEach(emp => {
-    html += `<tr><td class="emp-name-cell">${empNameCellHtml(emp)}</td>`;
+    html += `<tr><td class="emp-name-cell" title="${esc(prevThursdayText(emp))}">${empNameCellHtml(emp)}</td>`;
     DAYS.forEach((day, di) => {
       const statusId = getStatus(tab, emp, di);
       let cellInner;
+      let statusHtml = '';
       if (statusId) {
         const st = getStatusType(statusId);
         const color = st ? st.color : '#6c757d';
         const label = st ? st.label : statusId;
-        cellInner = `<div class="chip status-chip" style="background:${esc(color)};color:#fff;border-color:${esc(color)}" data-emp="${esc(emp)}" data-di="${di}" data-status="${esc(statusId)}">
+        statusHtml = `<div class="chip status-chip" style="background:${esc(color)};color:#fff;border-color:${esc(color)}" data-emp="${esc(emp)}" data-di="${di}" data-status="${esc(statusId)}">
           <span class="chip-label">${esc(label)}</span>
           <span class="chip-x" data-act="remove-status">✕</span>
         </div>`;
-      } else {
+      }
+      {
         const matches = findAssignmentsInTab(tab, emp, di);
-        const availViolation = hasAvailabilityViolation(tab, emp, di, matches);
+        const availViolation = !statusId && hasAvailabilityViolation(tab, emp, di, matches);
         let chipsHtml = matches.map(m => {
           const shift = tab.data[m.si];
           const isExceptionExtra = matches.length > 1;
           const style = shift.color ? ` style="background:${esc(shift.color)};color:#fff;border-color:${esc(shift.color)}"` : '';
-          return `<div class="chip${isExceptionExtra?' exception-chip':''}"${style} data-si="${m.si}" data-sli="${m.sli}" data-emp="${esc(emp)}" data-di="${di}">
+          return `<div class="chip${isExceptionExtra?' exception-chip':''}${statusId?' under-status':''}"${style} data-si="${m.si}" data-sli="${m.sli}" data-emp="${esc(emp)}" data-di="${di}">
             <span class="chip-label">${holidayOn(emp, dayISO(tab, di)) ? `<span title="On holiday in the Holiday Manager">🌴</span> ` : ''}${esc(shift.title)} · ${esc(shift.slotNames[m.sli])}${availViolation ? ` <span class="avail-badge" title="${esc(describeAvailabilityViolation(tab, emp, di, matches))}">⚠️</span>` : ''}</span>
             <span class="chip-x" data-act="remove">✕</span>
           </div>`;
         }).join('');
-        const addBtn = matches.length === 0
+        const addBtn = statusId ? '' : matches.length === 0
           ? (isDayOff(emp, di) ? `<div class="add-cell-btn unavail" data-emp="${esc(emp)}" data-di="${di}" title="Not available on this day (all day)">✕ Unavailable</div>` : `<div class="add-cell-btn" data-emp="${esc(emp)}" data-di="${di}">+ Add</div>`)
           : (allowExceptions ? `<div class="add-cell-btn small" data-emp="${esc(emp)}" data-di="${di}">+</div>` : '');
-        cellInner = `${chipsHtml}${addBtn}`;
+        cellInner = `${statusHtml}${chipsHtml}${addBtn}`;
       }
       html += `<td class="day-slot-cell${hasRestViolation(tab, emp, di) ? ' rest-violation' : ''}" title="${hasRestViolation(tab, emp, di) ? 'Less than 11 hours rest before the next shift' : ''}"><div class="cell-wrap">${cellInner}</div></td>`;
     });
@@ -2019,7 +2048,7 @@ function renderShiftsView() {
         const occ = row[di];
         if (occ) filled++;
         return occ
-          ? `<div class="shift-card-slot">${esc(shift.slotNames[sli])}: <strong>${nameNoHtml(occ)}</strong></div>`
+          ? `<div class="shift-card-slot">${esc(shift.slotNames[sli])}: <strong>${nameNoHtml(occ)}</strong>${(() => { const st = getStatus(tab, occ, di), t2 = st && getStatusType(st); return st ? ` <span style="background:${esc(t2 ? t2.color : '#6c757d')};color:#fff;border-radius:3px;padding:0 4px;font-size:10px;font-weight:bold">${esc(t2 ? t2.label : st)}</span>` : ''; })()}</div>`
           : `<div class="shift-card-slot empty">${esc(shift.slotNames[sli])}: — empty —</div>`;
       }).join('');
       return `<div class="shift-card-day">${day}</div>${slotsHtml}`;
@@ -2067,11 +2096,13 @@ function renderEmployeesView() {
     const rowsHtml = DAYS.map((_, di) => {
       const day = dayLabels[di];
       const statusId = getStatus(tab, emp, di);
-      let valText, valLines = null, isOff = false;
+      let valText, valLines = null, isOff = false, statusLabel = '';
       if (statusId) {
         const st = getStatusType(statusId);
         valText = st ? st.label : statusId;
         isOff = true;
+        const ms = findAssignmentsInTab(tab, emp, di);   // shift kept under the sticker
+        if (ms.length) { statusLabel = valText; valLines = ms.map(m => `${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]}`); }
       } else {
         const matches = findAssignmentsInTab(tab, emp, di);
         if (matches.length) {
@@ -2083,7 +2114,7 @@ function renderEmployeesView() {
         }
       }
       const violation = hasRestViolation(tab, emp, di);
-      return `<div class="emp-card-day${isOff?' off-day':''}${valLines?' shift-list':''}${violation?' rest-violation':''}" title="${violation?'Less than 11 hours rest before the next shift':''}"><span class="day-name">${esc(day)}</span><span class="day-val" title="${esc(valText)}">${valLines ? valLines.map(v => `<span class="one-shift">${esc(v)}</span>`).join('') : esc(valText)}</span></div>`;
+      return `<div class="emp-card-day${isOff?' off-day':''}${valLines?' shift-list':''}${violation?' rest-violation':''}" title="${violation?'Less than 11 hours rest before the next shift':''}"><span class="day-name">${esc(day)}</span><span class="day-val" title="${esc(valText)}">${statusLabel ? `<span class="one-status">${esc(statusLabel)}</span>` : ''}${valLines ? valLines.map(v => `<span class="one-shift${statusLabel ? ' struck' : ''}">${esc(v)}</span>`).join('') : esc(valText)}</span></div>`;
     }).join('');
     const weekHrs = computeWeeklyHours(tab, emp);
     const cumHrs = isWeek2 ? computeCumulativeHours(period, activeTab, emp) : weekHrs;
@@ -2108,6 +2139,12 @@ function renderEmployeesView() {
         if (statusId) {
           const st = getStatusType(statusId);
           valText = st ? st.label : statusId;
+          const ms = findAssignmentsInTab(tab, emp, di);
+          if (ms.length) {
+            lines.push('', `${day.toUpperCase()}: ${valText}`);
+            ms.forEach(m => lines.push(`• ${tab.data[m.si].title} · ${tab.data[m.si].slotNames[m.sli]} (${valText})`));
+            return;
+          }
         } else {
           const matches = findAssignmentsInTab(tab, emp, di);
           if (matches.length) {   // the day, then each shift on its own line
