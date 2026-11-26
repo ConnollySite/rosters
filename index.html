@@ -1876,6 +1876,7 @@ function showShiftTooltip(shiftIdx, currentDayIdx, anchorEl) {
   let filled = 0, total = 0;
   let html = '';
   DAYS.forEach((_, di) => {
+    if (!shiftRunsOn(shift, di) && !shiftHasPeopleOn(shift, di)) return;   // days the shift does not run (Runs on)
     const day = dayLabels[di];
     const rowLabels = shift.slots.map((row, sli) => {
       total++;
