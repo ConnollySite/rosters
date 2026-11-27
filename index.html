@@ -3279,7 +3279,7 @@ window.addEventListener('focus', pollCloud);
 </script>
 <!-- ===== Floating window: posts still open this week (updates live) ===== -->
 <div id="opWin" style="display:none">
-  <div id="opHead"><span id="opTitle">🧩 Open posts</span><span id="opMin" title="Make small / big">▁</span><span id="opClose" title="Close">✕</span></div>
+  <div id="opHead"><span id="opTitle">🧩 Open posts</span><span id="opPop" title="Take it out of the browser: its own window, always on top">⧉</span><span id="opMin" title="Make small / big">▁</span><span id="opClose" title="Close">✕</span></div>
   <div id="opDays"></div>
   <div id="opBody"></div>
 </div>
@@ -3301,6 +3301,10 @@ window.addEventListener('focus', pollCloud);
 #opBody .op-open { color: #dc3545; font-weight: bold; }
 #opBody .op-none { color: #198754; padding: 10px 0; text-align: center; font-weight: bold; }
 #opWin.small #opDays, #opWin.small #opBody { display: none; }
+#opHead #opPop { cursor: pointer; opacity: .8; font-size: 14px; }
+#opWin.in-pip { position: static; width: 100%; height: 100vh; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+#opWin.in-pip #opHead { border-radius: 0; cursor: default; }
+#opWin.in-pip #opMin { display: none; }
 </style>
 <script>
 // Floating window with the open posts of the week on screen. It redraws after every change, so you see it fill up live.
@@ -3354,12 +3358,32 @@ window.addEventListener('focus', pollCloud);
   daysBox.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; st.day = b.dataset.d === 'all' ? 'all' : Number(b.dataset.d); keep(); draw(); });
   function setOpen(v) { st.open = v; keep(); win.style.display = v ? 'flex' : 'none'; win.classList.toggle('small', !!st.small); if (v) { place(); draw(); } }
   document.getElementById('openPostsBtn').addEventListener('click', () => setOpen(!st.open));
-  document.getElementById('opClose').addEventListener('click', () => setOpen(false));
+  document.getElementById('opClose').addEventListener('click', () => { if (pip) pip.close(); setOpen(false); });
   document.getElementById('opMin').addEventListener('click', () => { st.small = !st.small; keep(); win.classList.toggle('small', st.small); });
+  // ⧉ take the window out of the browser (Chrome / Edge): it stays on top of every window, and keeps updating live
+  let pip = null;
+  document.getElementById('opPop').addEventListener('click', async () => {
+    if (pip) { pip.close(); return; }
+    if (!('documentPictureInPicture' in window)) { alert('This needs Google Chrome or Microsoft Edge on a computer.'); return; }
+    try {
+      pip = await documentPictureInPicture.requestWindow({ width: 360, height: Math.min(700, window.innerHeight) });
+    } catch (e) { pip = null; alert('Could not open the window: ' + e.message); return; }
+    // the same look in the new window
+    [...document.querySelectorAll('style')].forEach(st => { pip.document.head.appendChild(st.cloneNode(true)); });
+    pip.document.title = 'Open posts';
+    pip.document.body.style.margin = '0';
+    win.classList.add('in-pip'); win.classList.remove('small');
+    pip.document.body.append(win);
+    document.getElementById('opPop').title = 'Put it back in the page';
+    pip.addEventListener('pagehide', () => {
+      win.classList.remove('in-pip'); document.body.append(win); pip = null; place();
+      document.getElementById('opPop').title = 'Take it out of the browser: its own window, always on top';
+    });
+  });
   // drag by the dark bar
   const head = document.getElementById('opHead');
   head.addEventListener('mousedown', e => {
-    if (e.target.id === 'opClose' || e.target.id === 'opMin') return;
+    if (e.target.id === 'opClose' || e.target.id === 'opMin' || e.target.id === 'opPop' || pip) return;
     const r = win.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
     function mv(ev) { st.x = ev.clientX - dx; st.y = ev.clientY - dy; place(); }
     function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); keep(); }
