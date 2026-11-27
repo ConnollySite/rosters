@@ -46,7 +46,7 @@
 <header><div class="in">
   <small>Bidvest Noonan · Connolly</small>
   <h1>Student availability</h1>
-  <p id="intro">Tell us when you can work. You can send this form <b>only once</b>, so please check everything before you submit.</p>
+  <p id="intro">Tell us when you can work. Please check everything before you submit. When your period ends, send the form again with your next period.</p>
 </div></header>
 <main>
   <div class="notice"><b>Please read before you fill in</b><ul>
@@ -54,7 +54,8 @@
     <li>"Available from 14:00" means you can start at 14:00 <b>or later</b>. It does not mean you will get a shift at 14:00.</li>
     <li>Shifts are given according to the needs of the business. There is <b>no guarantee</b> of shifts on any day or at any time.</li>
     <li>What you send will be used from now on, until your supervisor asks everyone to fill in a new form.</li>
-    <li>You can send it only once. To change anything, speak to your supervisor.</li>
+    <li>You cannot change a period after you send it. To change anything, speak to your supervisor.</li>
+    <li>When your period ends, send a new one: it starts the day after the last one.</li>
   </ul></div>
   <form id="f" autocomplete="off">
     <div class="card"><h2>You</h2>
@@ -79,6 +80,8 @@
     <div class="err" id="err"></div>
   </form>
   <div class="card done hidden" id="ok"><div class="tick">✓</div><h2>Thank you, your availability was sent</h2><div class="hint" id="okWhen"></div><div class="sum" id="okSum"></div>
+    <button type="button" id="nextBtn" style="margin-top:14px;width:100%;padding:13px;font-size:16px;font-weight:700;border:0;border-radius:10px;background:#1A4396;color:#fff;cursor:pointer">📅 Send my next period</button>
+    <div class="hint" id="nextHint" style="margin-top:6px"></div>
     <div class="hint" style="margin-top:14px">This is not a choice of shifts and shifts are not guaranteed. If something must change, speak to your supervisor.</div></div>
 </main>
 <script>
@@ -110,8 +113,25 @@
     $('okWhen').textContent = info && info.submitted ? 'Sent on ' + info.submitted : '';
     $('okSum').innerHTML = info && info.days ? '<b>' + esc(info.name) + '</b> (' + esc(info.empNo) + ')<br>' + nice(info.from) + ' to ' + nice(info.to) + '<br>' + DAYS.map(function (d) { return FULL[d] + ': ' + esc(info.days[d]); }).join('<br>') : '';
   }
-  // this phone already sent it: show the summary instead of the form
-  try { var prev = JSON.parse(localStorage.getItem(KEY) || 'null'); if (prev) showDone(prev); } catch (e) {}
+  // this phone already sent a period: show it, with the button for the next period
+  var prev = null;
+  try { prev = JSON.parse(localStorage.getItem(KEY) || 'null'); if (prev) showDone(prev); } catch (e) {}
+  function dayAfter(iso) { var p = iso.split('-'), d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + 1)); return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
+  // a new form for the next period: same name and number, starting the day after the last period
+  function startNext(info) {
+    $('ok').classList.add('hidden'); $('f').classList.remove('hidden');
+    if (info) {
+      if (info.firstName) $('fname').value = info.firstName;
+      if (info.lastName) $('lname').value = info.lastName;
+      if (info.empNo) $('emp').value = info.empNo;
+      if (info.to) { var nf = dayAfter(info.to); $('from').value = nf; $('from').min = nf; $('to').min = nf; $('to').value = ''; }
+    }
+    DAYS.forEach(function (d) { $('d_' + d).value = ''; });
+    $('agree').checked = false;
+    $('send').disabled = false; $('send').textContent = 'Submit';
+    window.scrollTo(0, 0);
+  }
+  $('nextBtn').onclick = function () { startNext(prev); };
   // the period comes from the server (so it can be changed there without touching this page)
   fetch(URL_ + '?format=availinfo&t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) { if (j && j.from && (j.from !== FROM || (j.to || '') !== TO)) { FROM = j.from; TO = j.to || ''; setRange(); } }).catch(function () {});
 
@@ -129,13 +149,18 @@
     for (var i = 0; i < DAYS.length; i++) { var v = $('d_' + DAYS[i]).value; if (!v) { err.textContent = 'Choose an option for ' + FULL[DAYS[i]] + '.'; $('d_' + DAYS[i]).focus(); return; } d.days[DAYS[i]] = v; }
     if (!$('agree').checked) { err.textContent = 'Tick "I understand" before you submit.'; $('agree').focus(); return; }
     d.agreed = true;
-    if (!confirm('You can only send this once. Send it now?')) return;
+    if (!confirm('Send your availability from ' + nice(d.from) + ' to ' + nice(d.to) + ' now?')) return;
     $('send').disabled = true; $('send').textContent = 'Sending…';
     fetch(URL_, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(d) })
       .then(function (r) { return r.json(); })
       .then(function (r) {
-        if (r && r.ok) { d.submitted = r.submitted; try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} showDone(d); window.scrollTo(0, 0); return; }
-        if (r && r.error === 'already') { err.textContent = 'This employee number already sent the availability (' + (r.submitted || '') + '). If something must change, speak to your supervisor.'; }
+        if (r && r.ok) { d.submitted = r.submitted; prev = d; try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} showDone(d); window.scrollTo(0, 0); return; }
+        if (r && r.error === 'already') {
+          if (r.nextFrom) {   // this number already has a period: the new one must start after it
+            err.textContent = 'You already sent ' + nice(r.lastFrom) + ' to ' + nice(r.lastTo) + '. The new period must start on ' + nice(r.nextFrom) + ' or later. The "From" date was changed for you: check it and submit again.';
+            $('from').value = r.nextFrom; $('from').min = r.nextFrom; $('to').min = r.nextFrom; if ($('to').value && $('to').value < r.nextFrom) $('to').value = '';
+          } else err.textContent = 'This employee number already sent the availability (' + (r.submitted || '') + '). If something must change, speak to your supervisor.';
+        }
         else err.textContent = (r && r.error) || 'Could not send. Try again.';
         $('send').disabled = false; $('send').textContent = 'Submit';
       })

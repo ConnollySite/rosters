@@ -3231,9 +3231,14 @@ window.addEventListener('focus', pollCloud);
         var six = String(r.empNo || '').replace(/\D/g, '');
         if (six) getGlobalEmpMeta(name).empNo = six.padStart(6, '0').slice(-6);   // next time: found by the number
       }
-      // replaces what came from an earlier form; restrictions typed by hand (without the form) are kept
-      var gm = getGlobalEmpMeta(name);
-      gm.availability = (gm.availability || []).filter(function (a) { return a.src !== 'form'; }).concat(restrictionsOf(r));
+      // a person can send several periods: this answer replaces only the form restrictions of the same dates
+      // (or dates that overlap them); other periods and restrictions typed by hand are kept
+      var gm = getGlobalEmpMeta(name), rf = toISODate(r.from) || '', rt = toISODate(r.to) || '9999-12-31';
+      gm.availability = (gm.availability || []).filter(function (a) {
+        if (a.src !== 'form') return true;
+        var af = toISODate(a.from) || '', at = toISODate(a.to) || '9999-12-31';
+        return at < rf || af > rt;   // keep only the ones that do not overlap this period
+      }).concat(restrictionsOf(r));
       done.push(name);
     }
     if (!done.length) { msg(skipped.length ? 'Nothing imported.' : ''); return; }
