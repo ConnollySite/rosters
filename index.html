@@ -394,6 +394,7 @@ td.day-slot-cell.rest-violation { box-shadow: inset -4px 0 0 0 #dc3545; }
     <button class="btn btn-orange" id="historyBtn">📜 History</button>
     <button class="btn btn-dark"   id="lockBtn">🔒 Lock</button>
     <button class="btn btn-purple" id="availBtn">🎓 Student availability</button>
+ <button class="btn btn-dark" id="openPostsBtn" title="Floating window with the posts still open in this week, updated live">🧩 Open posts</button>
     <button class="btn btn-purple" id="holSyncBtn" title="Bring the holidays from the Holiday Manager into the roster">🌴 Holidays</button>
   </div>
 </header>
@@ -3274,6 +3275,100 @@ window.addEventListener('focus', pollCloud);
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(FORM_URL).then(done, function () { prompt('Copy the link:', FORM_URL); });
     else prompt('Copy the link:', FORM_URL);
   };
+})();
+</script>
+<!-- ===== Floating window: posts still open this week (updates live) ===== -->
+<div id="opWin" style="display:none">
+  <div id="opHead"><span id="opTitle">🧩 Open posts</span><span id="opMin" title="Make small / big">▁</span><span id="opClose" title="Close">✕</span></div>
+  <div id="opDays"></div>
+  <div id="opBody"></div>
+</div>
+<style>
+#opWin { position: fixed; right: 16px; top: 90px; width: 330px; max-height: 70vh; background: #fff; border: 1px solid #ced4da; border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,.25); z-index: 900; display: flex; flex-direction: column; font-size: 12px; }
+#opHead { background: #212529; color: #fff; padding: 7px 10px; border-radius: 10px 10px 0 0; cursor: move; display: flex; gap: 10px; align-items: center; user-select: none; }
+#opHead #opTitle { flex: 1; font-weight: bold; }
+#opHead span[id^=opM], #opHead #opClose { cursor: pointer; opacity: .8; }
+#opDays { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 8px; border-bottom: 1px solid #e9ecef; }
+#opDays button { border: 1px solid #ced4da; background: #fff; border-radius: 12px; padding: 2px 7px; font-size: 11px; cursor: pointer; }
+#opDays button.on { background: #212529; color: #fff; border-color: #212529; }
+#opDays button .n { color: #dc3545; font-weight: bold; } #opDays button.on .n { color: #ffb3b3; }
+#opBody { overflow-y: auto; padding: 4px 8px 8px; }
+#opBody .op-day { font-weight: bold; margin: 8px 0 3px; color: #495057; text-transform: uppercase; font-size: 11px; }
+#opBody .op-shift { border: 1px solid #e9ecef; border-left: 4px solid #6c757d; border-radius: 6px; padding: 4px 7px; margin-bottom: 4px; }
+#opBody .op-shift b { font-size: 12px; }
+#opBody .op-slot { display: flex; gap: 6px; padding: 1px 0; }
+#opBody .op-slot .sl { color: #868e96; min-width: 74px; }
+#opBody .op-open { color: #dc3545; font-weight: bold; }
+#opBody .op-none { color: #198754; padding: 10px 0; text-align: center; font-weight: bold; }
+#opWin.small #opDays, #opWin.small #opBody { display: none; }
+</style>
+<script>
+// Floating window with the open posts of the week on screen. It redraws after every change, so you see it fill up live.
+(function () {
+  const win = document.getElementById('opWin'), body = document.getElementById('opBody'), daysBox = document.getElementById('opDays');
+  const KEY = 'roster_openposts_v1';
+  let st = { open: false, x: null, y: null, day: 'all', small: false };
+  try { st = Object.assign(st, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+  function keep() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+  function place() { if (st.x != null) { win.style.left = Math.max(0, Math.min(window.innerWidth - 120, st.x)) + 'px'; win.style.top = Math.max(0, Math.min(window.innerHeight - 40, st.y)) + 'px'; win.style.right = 'auto'; } }
+  function draw() {
+    if (!st.open) return;
+    const tab = (typeof currentTab === 'function') ? currentTab() : null;
+    if (!tab) { body.innerHTML = ''; return; }
+    ensureDayLabels(tab);
+    const labels = tab.dayLabels || DAYS;
+    const perDay = DAYS.map((_, di) => {
+      const items = [];
+      tab.data.forEach(shift => {
+        if (!shiftRunsOn(shift, di) || /open\s*post/i.test(shift.title)) return;   // the "OPEN POST" list itself is not a post
+        // ">>OPEN POST <<" and similar placeholders count as open
+        const rows = shift.slots.map((row, sli) => ({ name: shift.slotNames[sli], who: (row[di] && !/open\s*post/i.test(row[di])) ? row[di] : '' }));
+        if (!rows.some(r => !r.who)) return;               // shift full: not shown
+        items.push({ shift, rows, open: rows.filter(r => !r.who).length });
+      });
+      return items;
+    });
+    const total = perDay.reduce((n, it) => n + it.reduce((m, x) => m + x.open, 0), 0);
+    document.getElementById('opTitle').textContent = '🧩 Open posts · ' + total + ' open';
+    daysBox.innerHTML = '<button data-d="all" class="' + (st.day === 'all' ? 'on' : '') + '">All <span class="n">' + total + '</span></button>' +
+      DAYS.map((_, di) => { const n = perDay[di].reduce((m, x) => m + x.open, 0); return '<button data-d="' + di + '" class="' + (String(st.day) === String(di) ? 'on' : '') + '">' + esc(String(labels[di]).replace(/\s+/g, ' ')) + (n ? ' <span class="n">' + n + '</span>' : ' ✓') + '</button>'; }).join('');
+    const show = st.day === 'all' ? DAYS.map((_, di) => di) : [Number(st.day)];
+    let h = '';
+    show.forEach(di => {
+      if (!perDay[di].length) { if (st.day !== 'all') h += '<div class="op-none">✓ All posts filled on ' + esc(labels[di]) + '</div>'; return; }
+      h += '<div class="op-day">' + esc(labels[di]) + '</div>';
+      perDay[di].forEach(it => {
+        h += '<div class="op-shift" style="border-left-color:' + esc(it.shift.color || '#6c757d') + '"><b>' + esc(it.shift.title) + '</b>' + (it.shift.startTime && it.shift.finishTime ? ' <span style="color:#868e96">' + esc(it.shift.startTime) + '–' + esc(it.shift.finishTime) + '</span>' : '') +
+          (it.rows.length > 4 ? it.rows.filter(r => !r.who) : it.rows).map(r => {
+            if (!r.who) return '<div class="op-slot"><span class="sl">' + esc(r.name) + '</span><span class="op-open">— open —</span></div>';
+            const stt = getStatus(tab, r.who, di), t2 = stt && getStatusType(stt);
+            const others = it.rows.filter(x => x.who && x.who !== r.who).map(x => x.who);
+            const bad = others.some(o => isBadMatch(r.who, o));
+            return '<div class="op-slot"><span class="sl">' + esc(r.name) + '</span><span>' + nameNoHtml(r.who) + (t2 ? ' <span style="background:' + esc(t2.color) + ';color:#fff;border-radius:3px;padding:0 3px;font-size:10px">' + esc(t2.label) + '</span>' : '') + (bad ? ' <span class="picker-m" title="Bad match">M</span>' : '') + '</span></div>';
+          }).join('') + (it.rows.length > 4 && it.rows.length > it.open ? '<div class="op-slot" style="color:#868e96">+ ' + (it.rows.length - it.open) + ' filled</div>' : '') + '</div>';
+      });
+    });
+    if (!h) h = '<div class="op-none">✓ All posts filled this week</div>';
+    body.innerHTML = h;
+  }
+  daysBox.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; st.day = b.dataset.d === 'all' ? 'all' : Number(b.dataset.d); keep(); draw(); });
+  function setOpen(v) { st.open = v; keep(); win.style.display = v ? 'flex' : 'none'; win.classList.toggle('small', !!st.small); if (v) { place(); draw(); } }
+  document.getElementById('openPostsBtn').addEventListener('click', () => setOpen(!st.open));
+  document.getElementById('opClose').addEventListener('click', () => setOpen(false));
+  document.getElementById('opMin').addEventListener('click', () => { st.small = !st.small; keep(); win.classList.toggle('small', st.small); });
+  // drag by the dark bar
+  const head = document.getElementById('opHead');
+  head.addEventListener('mousedown', e => {
+    if (e.target.id === 'opClose' || e.target.id === 'opMin') return;
+    const r = win.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    function mv(ev) { st.x = ev.clientX - dx; st.y = ev.clientY - dy; place(); }
+    function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); keep(); }
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up); e.preventDefault();
+  });
+  // redraw after every change in the roster
+  const _render = window.render;
+  window.render = function () { _render.apply(this, arguments); try { draw(); } catch (e) {} };
+  if (st.open) setTimeout(() => setOpen(true), 800);
 })();
 </script>
 </body>
