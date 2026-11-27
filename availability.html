@@ -60,10 +60,11 @@
   <form id="f" autocomplete="off">
     <div class="card"><h2>You</h2>
       <div class="two">
-        <div class="field"><label for="fname">First name</label><input id="fname" maxlength="40" autocapitalize="words" autocomplete="given-name"></div>
-        <div class="field"><label for="lname">Last name</label><input id="lname" maxlength="40" autocapitalize="words" autocomplete="family-name"></div>
+        <div class="field"><label for="fname">First name</label><input id="fname" maxlength="40" autocapitalize="words" autocomplete="given-name" placeholder="e.g. Rafael"></div>
+        <div class="field"><label for="lname">Last name</label><input id="lname" maxlength="40" autocapitalize="words" autocomplete="family-name" placeholder="e.g. Falcao"></div>
+        <div class="hint" style="margin-top:-4px">Only your <b>first name</b> and your <b>last surname</b> (e.g. Rafael Falcao, not Rafael da Silva Falcao).</div>
       </div>
-      <div class="field"><label for="emp">Employee number</label><input id="emp" maxlength="20" inputmode="text" autocapitalize="characters"></div>
+      <div class="field"><label for="emp">Employee number <span style="color:#b91c1c">*</span></label><input id="emp" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" placeholder="6 digits, e.g. 554401"></div>
     </div>
     <div class="card"><h2>Dates</h2>
       <div class="two">
@@ -141,8 +142,14 @@
     var fn = $('fname').value.replace(/\s+/g, ' ').trim(), ln = $('lname').value.replace(/\s+/g, ' ').trim();
     if (!fn) { err.textContent = 'Write your first name.'; $('fname').focus(); return; }
     if (!ln) { err.textContent = 'Write your last name.'; $('lname').focus(); return; }
+    // only the first name and the last surname
+    if (fn.indexOf(' ') >= 0) { err.textContent = 'Write only your first name (one name) in "First name".'; $('fname').focus(); return; }
+    if (ln.split(' ').length > 1 && !/^(o'|mc|mac|van|von|de|da|do|dos|das|di|du|le|la)$/i.test(ln.split(' ')[0])) { err.textContent = 'Write only your last surname in "Last name" (e.g. Falcao, not da Silva Falcao).'; $('lname').focus(); return; }
+    if (ln.split(' ').length > 2) { err.textContent = 'Write only your last surname in "Last name".'; $('lname').focus(); return; }
     var d = { kind: 'availability', name: fn + ' ' + ln, firstName: fn, lastName: ln, empNo: $('emp').value.trim(), from: $('from').value, to: $('to').value, days: {} };
-    if (!d.empNo) { err.textContent = 'Write your employee number.'; return; }
+    d.empNo = d.empNo.replace(/\D/g, '');
+    if (!d.empNo) { err.textContent = 'Write your employee number.'; $('emp').focus(); return; }
+    if (!/^\d{6}$/.test(d.empNo)) { err.textContent = 'Your employee number has 6 digits (e.g. 554401). Please check it.'; $('emp').focus(); return; }
     if (!d.from || !d.to) { err.textContent = 'Choose the "From" and the "To" dates.'; return; }
     if (d.from < FROM || (TO && d.to > TO)) { err.textContent = TO ? 'Choose dates between ' + nice(FROM) + ' and ' + nice(TO) + '.' : 'The "From" date must be ' + nice(FROM) + ' or later.'; return; }
     if (d.to < d.from) { err.textContent = 'The "To" date is before the "From" date.'; return; }
