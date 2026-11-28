@@ -3279,7 +3279,7 @@ window.addEventListener('focus', pollCloud);
 </script>
 <!-- ===== Floating window: posts still open this week (updates live) ===== -->
 <div id="opWin" style="display:none">
-  <div id="opHead"><span id="opTitle">🧩 Open posts</span><span id="opPop" title="Take it out of the browser: its own window, always on top">⧉</span><span id="opMin" title="Make small / big">▁</span><span id="opClose" title="Close">✕</span></div>
+  <div id="opHead"><span id="opTitle">🧩 Open posts</span><span id="opCopy" title="Copy the open posts (for WhatsApp)">📋</span><span id="opPop" title="Take it out of the browser: its own window, always on top">⧉</span><span id="opMin" title="Make small / big">▁</span><span id="opClose" title="Close">✕</span></div>
   <div id="opDays"></div>
   <div id="opBody"></div>
 </div>
@@ -3301,7 +3301,7 @@ window.addEventListener('focus', pollCloud);
 #opBody .op-open { color: #dc3545; font-weight: bold; }
 #opBody .op-none { color: #198754; padding: 10px 0; text-align: center; font-weight: bold; }
 #opWin.small #opDays, #opWin.small #opBody { display: none; }
-#opHead #opPop { cursor: pointer; opacity: .8; font-size: 14px; }
+#opHead #opPop, #opHead #opCopy { cursor: pointer; opacity: .8; font-size: 14px; }
 #opWin.in-pip { position: static; width: 100%; height: 100vh; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
 #opWin.in-pip #opHead { border-radius: 0; cursor: default; }
 #opWin.in-pip #opMin { display: none; }
@@ -3311,6 +3311,7 @@ window.addEventListener('focus', pollCloud);
 (function () {
   const win = document.getElementById('opWin'), body = document.getElementById('opBody'), daysBox = document.getElementById('opDays');
   // keep the pieces in hand: when the window is taken out of the browser they are no longer in this page
+  let lastText = '';   // the same list as text, for 📋
   const titleEl = document.getElementById('opTitle'), popEl = document.getElementById('opPop'), minEl = document.getElementById('opMin'), closeEl = document.getElementById('opClose'), head = document.getElementById('opHead');
   const KEY = 'roster_openposts_v1';
   let st = { open: false, x: null, y: null, day: 'all', small: false };
@@ -3339,6 +3340,19 @@ window.addEventListener('focus', pollCloud);
     daysBox.innerHTML = '<button data-d="all" class="' + (st.day === 'all' ? 'on' : '') + '">All <span class="n">' + total + '</span></button>' +
       DAYS.map((_, di) => { const n = perDay[di].reduce((m, x) => m + x.open, 0); return '<button data-d="' + di + '" class="' + (String(st.day) === String(di) ? 'on' : '') + '">' + esc(String(labels[di]).replace(/\s+/g, ' ')) + (n ? ' <span class="n">' + n + '</span>' : ' ✓') + '</button>'; }).join('');
     const show = st.day === 'all' ? DAYS.map((_, di) => di) : [Number(st.day)];
+    const tl = ['OPEN POSTS – ' + currentPeriod().name + ' · ' + tab.name];
+    show.forEach(di => {
+      if (!perDay[di].length) return;
+      tl.push('', String(labels[di]).replace(/\s+/g, ' ').toUpperCase() + ':');
+      perDay[di].forEach(it => {
+        // the open slots, the same time counted once: "16:00 - 00:00 ×8, 16:30 - 00:00 ×2"
+        const cnt = {}; it.rows.filter(r => !r.who).forEach(r => { cnt[r.name] = (cnt[r.name] || 0) + 1; });
+        const keys = Object.keys(cnt);
+        tl.push('• ' + it.shift.title + ' ' + keys.map(k => k + (keys.length > 1 && cnt[k] > 1 ? ' ×' + cnt[k] : '')).join(', ') + (it.open > 1 ? ' (' + it.open + ' open)' : ''));
+      });
+    });
+    if (tl.length === 1) tl.push('', 'All posts filled.');
+    lastText = tl.join('\n');
     let h = '';
     show.forEach(di => {
       if (!perDay[di].length) { if (st.day !== 'all') h += '<div class="op-none">✓ All posts filled on ' + esc(labels[di]) + '</div>'; return; }
@@ -3362,6 +3376,13 @@ window.addEventListener('focus', pollCloud);
   document.getElementById('openPostsBtn').addEventListener('click', () => setOpen(!st.open));
   closeEl.addEventListener('click', () => { if (pip) pip.close(); setOpen(false); });
   minEl.addEventListener('click', () => { st.small = !st.small; keep(); win.classList.toggle('small', st.small); });
+  // 📋 copy the list shown (the day chosen, or the whole week)
+  popEl.parentNode.querySelector('#opCopy').addEventListener('click', e => {
+    const w = (e.view || window), t = lastText;
+    const done = () => { const old = titleEl.textContent; titleEl.textContent = '✓ Copied'; setTimeout(() => { titleEl.textContent = old; }, 1200); };
+    const fallback = () => { const d = w.document, ta = d.createElement('textarea'); ta.value = t; d.body.appendChild(ta); ta.select(); try { d.execCommand('copy'); done(); } catch (er) { prompt('Copy:', t); } ta.remove(); };
+    if (w.navigator.clipboard && w.navigator.clipboard.writeText) w.navigator.clipboard.writeText(t).then(done, fallback); else fallback();
+  });
   // ⧉ take the window out of the browser (Chrome / Edge): it stays on top of every window, and keeps updating live
   let pip = null;
   popEl.addEventListener('click', async () => {
