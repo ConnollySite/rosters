@@ -3310,6 +3310,8 @@ window.addEventListener('focus', pollCloud);
 // Floating window with the open posts of the week on screen. It redraws after every change, so you see it fill up live.
 (function () {
   const win = document.getElementById('opWin'), body = document.getElementById('opBody'), daysBox = document.getElementById('opDays');
+  // keep the pieces in hand: when the window is taken out of the browser they are no longer in this page
+  const titleEl = document.getElementById('opTitle'), popEl = document.getElementById('opPop'), minEl = document.getElementById('opMin'), closeEl = document.getElementById('opClose'), head = document.getElementById('opHead');
   const KEY = 'roster_openposts_v1';
   let st = { open: false, x: null, y: null, day: 'all', small: false };
   try { st = Object.assign(st, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -3333,7 +3335,7 @@ window.addEventListener('focus', pollCloud);
       return items;
     });
     const total = perDay.reduce((n, it) => n + it.reduce((m, x) => m + x.open, 0), 0);
-    document.getElementById('opTitle').textContent = '🧩 Open posts · ' + total + ' open';
+    titleEl.textContent = '🧩 Open posts · ' + total + ' open';
     daysBox.innerHTML = '<button data-d="all" class="' + (st.day === 'all' ? 'on' : '') + '">All <span class="n">' + total + '</span></button>' +
       DAYS.map((_, di) => { const n = perDay[di].reduce((m, x) => m + x.open, 0); return '<button data-d="' + di + '" class="' + (String(st.day) === String(di) ? 'on' : '') + '">' + esc(String(labels[di]).replace(/\s+/g, ' ')) + (n ? ' <span class="n">' + n + '</span>' : ' ✓') + '</button>'; }).join('');
     const show = st.day === 'all' ? DAYS.map((_, di) => di) : [Number(st.day)];
@@ -3358,11 +3360,11 @@ window.addEventListener('focus', pollCloud);
   daysBox.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; st.day = b.dataset.d === 'all' ? 'all' : Number(b.dataset.d); keep(); draw(); });
   function setOpen(v) { st.open = v; keep(); win.style.display = v ? 'flex' : 'none'; win.classList.toggle('small', !!st.small); if (v) { place(); draw(); } }
   document.getElementById('openPostsBtn').addEventListener('click', () => setOpen(!st.open));
-  document.getElementById('opClose').addEventListener('click', () => { if (pip) pip.close(); setOpen(false); });
-  document.getElementById('opMin').addEventListener('click', () => { st.small = !st.small; keep(); win.classList.toggle('small', st.small); });
+  closeEl.addEventListener('click', () => { if (pip) pip.close(); setOpen(false); });
+  minEl.addEventListener('click', () => { st.small = !st.small; keep(); win.classList.toggle('small', st.small); });
   // ⧉ take the window out of the browser (Chrome / Edge): it stays on top of every window, and keeps updating live
   let pip = null;
-  document.getElementById('opPop').addEventListener('click', async () => {
+  popEl.addEventListener('click', async () => {
     if (pip) { pip.close(); return; }
     if (!('documentPictureInPicture' in window)) { alert('This needs Google Chrome or Microsoft Edge on a computer.'); return; }
     try {
@@ -3374,14 +3376,13 @@ window.addEventListener('focus', pollCloud);
     pip.document.body.style.margin = '0';
     win.classList.add('in-pip'); win.classList.remove('small');
     pip.document.body.append(win);
-    document.getElementById('opPop').title = 'Put it back in the page';
+    popEl.title = 'Put it back in the page';
     pip.addEventListener('pagehide', () => {
       win.classList.remove('in-pip'); document.body.append(win); pip = null; place();
-      document.getElementById('opPop').title = 'Take it out of the browser: its own window, always on top';
+      popEl.title = 'Take it out of the browser: its own window, always on top';
     });
   });
   // drag by the dark bar
-  const head = document.getElementById('opHead');
   head.addEventListener('mousedown', e => {
     if (e.target.id === 'opClose' || e.target.id === 'opMin' || e.target.id === 'opPop' || pip) return;
     const r = win.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
